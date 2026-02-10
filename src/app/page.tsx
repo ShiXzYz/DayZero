@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, ShieldCheck, Bell, Search } from "lucide-react";
@@ -68,10 +69,14 @@ export default function DayZeroPrototype() {
           Your early warning system for online breaches.
         </p>
         <div className="mt-8 flex justify-center gap-4">
-          <Button className="rounded-2xl px-6 bg-blue-600 hover:bg-blue-500">Check Your Exposure</Button>
-          <Button variant="outline" className="rounded-2xl px-6 text-black">
-            Get Alerts
-          </Button>
+          <Link href="/check-exposure">
+            <Button className="rounded-2xl px-6 bg-blue-600 hover:bg-blue-500">Check Your Exposure</Button>
+          </Link>
+          <Link href="/get-alerts">
+            <Button variant="outline" className="rounded-2xl px-6 text-black">
+              Get Alerts
+            </Button>
+          </Link>
         </div>
       </motion.div>
 
@@ -161,9 +166,11 @@ export default function DayZeroPrototype() {
         <p className="mt-4 text-slate-400">
           Don’t find out months later. Be informed the moment trust breaks.
         </p>
-        <Button className="mt-8 rounded-2xl px-8 py-6 text-lg bg-green-600 hover:bg-green-500">
-          Join the Waitlist
-        </Button>
+        <Link href="/join-waitlist">
+          <Button className="mt-8 rounded-2xl px-8 py-6 text-lg bg-green-600 hover:bg-green-500">
+            Join the Waitlist
+          </Button>
+        </Link>
       </motion.div>
     </div>
   );
