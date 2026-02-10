@@ -13,7 +13,10 @@ type Breach = {
   data: string;
   severity: "Low" | "Medium" | "High";
   action: string;
+  industry?: string;
 };
+
+const INDUSTRIES = ["All", "Tech", "Finance", "Retail", "Healthcare", "Social Media"];
 
 const MOCK_BREACHES: Breach[] = [
   {
@@ -21,33 +24,69 @@ const MOCK_BREACHES: Breach[] = [
     date: "Mar 18, 2025",
     data: "Email addresses, IP metadata",
     severity: "Medium",
-    action: "Change your password and enable 2FA"
+    action: "Change your password and enable 2FA",
+    industry: "Social Media"
   },
   {
     company: "Dropbox",
     date: "Nov 2, 2024",
     data: "Email addresses, hashed passwords",
     severity: "High",
-    action: "Change password immediately"
+    action: "Change password immediately",
+    industry: "Tech"
   },
   {
     company: "Canva",
     date: "Jul 9, 2023",
     data: "Usernames, emails",
     severity: "Low",
-    action: "No immediate action required"
+    action: "No immediate action required",
+    industry: "Tech"
+  },
+  {
+    company: "Chase Bank",
+    date: "Feb 5, 2026",
+    data: "Customer account numbers",
+    severity: "High",
+    action: "Contact your bank immediately",
+    industry: "Finance"
+  },
+  {
+    company: "Target",
+    date: "Jan 28, 2026",
+    data: "Payment card data, addresses",
+    severity: "High",
+    action: "Check credit report and enable fraud alerts",
+    industry: "Retail"
+  },
+  {
+    company: "CVS Health",
+    date: "Jan 15, 2026",
+    data: "Patient names, medical info",
+    severity: "High",
+    action: "Monitor health records for unauthorized access",
+    industry: "Healthcare"
   }
 ];
 
 export default function DayZeroPrototype() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Breach[]>([]);
+  const [selectedIndustry, setSelectedIndustry] = useState("All");
 
   const handleSearch = () => {
-    const filtered = MOCK_BREACHES.filter(breach =>
+    let filtered = MOCK_BREACHES.filter(breach =>
       breach.company.toLowerCase().includes(query.toLowerCase())
     );
+    if (selectedIndustry !== "All") {
+      filtered = filtered.filter(breach => breach.industry === selectedIndustry);
+    }
     setResults(filtered);
+  };
+
+  const scrollToSearch = () => {
+    const searchSection = document.getElementById("search-section");
+    searchSection?.scrollIntoView({ behavior: "smooth" });
   };
 
   const severityColor = (level: Breach["severity"]) => {
@@ -69,9 +108,12 @@ export default function DayZeroPrototype() {
           Your early warning system for online breaches.
         </p>
         <div className="mt-8 flex justify-center gap-4">
-          <Link href="/check-exposure">
-            <Button className="rounded-2xl px-6 bg-blue-600 hover:bg-blue-500">Check Your Exposure</Button>
-          </Link>
+          <button
+            onClick={scrollToSearch}
+            className="rounded-2xl px-6 bg-blue-600 hover:bg-blue-500 text-slate-100 font-medium py-2 transition-all"
+          >
+            Check Your Exposure
+          </button>
           <Link href="/get-alerts">
             <Button variant="outline" className="rounded-2xl px-6 text-black">
               Get Alerts
@@ -114,7 +156,7 @@ export default function DayZeroPrototype() {
       </div>
 
       {/* Breach lookup */}
-      <div className="max-w-3xl mx-auto mt-32">
+      <div id="search-section" className="max-w-3xl mx-auto mt-32">
         <Card className="bg-slate-900/80 backdrop-blur border border-slate-700 rounded-2xl shadow-lg">
           <CardContent className="p-6">
             <h2 className="text-2xl font-semibold text-white">Search Breaches</h2>
@@ -132,6 +174,26 @@ export default function DayZeroPrototype() {
               <Button onClick={handleSearch} className="rounded-xl bg-blue-600 hover:bg-blue-500">Search</Button>
             </div>
 
+            {/* Industry Filters */}
+            <div className="mt-6">
+              <p className="text-sm font-medium text-slate-300 mb-3">Filter by Industry</p>
+              <div className="flex flex-wrap gap-2">
+                {INDUSTRIES.map(industry => (
+                  <button
+                    key={industry}
+                    onClick={() => setSelectedIndustry(industry)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      selectedIndustry === industry
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    }`}
+                  >
+                    {industry}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="mt-6 space-y-4">
               {results.length === 0 && query && (
                 <p className="text-slate-400">No reported breaches found.</p>
@@ -140,7 +202,10 @@ export default function DayZeroPrototype() {
               {results.map((breach, idx) => (
                 <div key={idx} className="rounded-xl bg-slate-950/70 border border-slate-700 p-4">
                   <div className="flex justify-between items-center">
-                    <p className="font-semibold text-white">{breach.company}</p>
+                    <div>
+                      <p className="font-semibold text-white">{breach.company}</p>
+                      {breach.industry && <p className="text-xs text-slate-400 mt-1">{breach.industry}</p>}
+                    </div>
                     <span className={`text-sm font-medium ${severityColor(breach.severity)}`}>
                       {breach.severity} impact
                     </span>
@@ -153,6 +218,31 @@ export default function DayZeroPrototype() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Recent Disclosures Feed */}
+      <div className="max-w-3xl mx-auto mt-16">
+        <h2 className="text-2xl font-semibold text-white mb-4">Recent Breach Disclosures</h2>
+        <div className="space-y-3">
+          {MOCK_BREACHES.slice(0, 4).map((breach, idx) => (
+            <div key={idx} className="bg-slate-900/50 border border-slate-700 rounded-xl p-4 hover:bg-slate-900/70 transition-all">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-semibold text-white">{breach.company}</p>
+                  <p className="text-xs text-slate-400 mt-1">{breach.industry} • {breach.date}</p>
+                </div>
+                <span className={`text-xs font-medium px-2 py-1 rounded ${
+                  breach.severity === "High" ? "bg-red-500/20 text-red-300" :
+                  breach.severity === "Medium" ? "bg-yellow-500/20 text-yellow-300" :
+                  "bg-green-500/20 text-green-300"
+                }`}>
+                  {breach.severity}
+                </span>
+              </div>
+              <p className="text-sm text-slate-300 mt-2">{breach.data}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* CTA */}
@@ -172,6 +262,9 @@ export default function DayZeroPrototype() {
           </Button>
         </Link>
       </motion.div>
-    </div>
+      {/* Privacy Footer */}
+      <div className="max-w-4xl mx-auto text-center mt-20 pb-10 border-t border-slate-700 pt-10">
+        <p className="text-sm text-slate-500">DayZero does not collect or store personal data</p>
+      </div>    </div>
   );
 }
