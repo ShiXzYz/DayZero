@@ -24,7 +24,7 @@ export default function GetAlertsPage() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full mt-6 rounded-xl bg-slate-950 border border-slate-600 px-4 py-2"
+                className="w-full mt-6 rounded-xl bg-slate-950 text-slate-100 border border-slate-600 px-4 py-2"
               />
               <Button onClick={() => setSubmitted(true)} className="w-full mt-4 rounded-xl bg-blue-600">Enable Alerts</Button>
             </>

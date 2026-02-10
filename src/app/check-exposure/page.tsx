@@ -23,7 +23,7 @@ export default function CheckExposurePage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="mt-6 w-full rounded-xl bg-slate-950 border border-slate-600 px-4 py-3"
+              className="mt-6 w-full rounded-xl bg-slate-950 text-slate-100 border border-slate-600 px-4 py-3"
             />
 
             <Button onClick={() => setChecked(true)} className="mt-4 w-full bg-blue-600">
