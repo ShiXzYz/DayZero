@@ -120,7 +120,8 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
+  html, body {
+    @apply bg-slate-950 text-slate-100;
+    color-scheme: dark;
   }
 }

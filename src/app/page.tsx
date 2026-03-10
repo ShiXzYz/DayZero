@@ -189,7 +189,7 @@ export default function DayZeroHome() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       {/* Nav */}
       <nav className="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className="h-6 w-6 text-blue-400" />
             <span className="text-xl font-bold text-white tracking-tight">DayZero</span>
@@ -217,7 +217,7 @@ export default function DayZeroHome() {
         </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
+      <div className="max-w-5xl mx-auto px-4 py-10 grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-8">
         {/* Main Feed */}
         <div>
           {/* Hero */}
@@ -369,7 +369,7 @@ export default function DayZeroHome() {
         </div>
 
         {/* Sidebar */}
-        <aside className="space-y-6">
+        <aside className="space-y-6 min-w-0">
           {/* Stats */}
           <Card className="bg-slate-900 border border-slate-700 rounded-2xl">
             <CardContent className="p-5">
@@ -451,7 +451,7 @@ export default function DayZeroHome() {
 
       {/* How it works */}
       <div className="border-t border-slate-800 bg-slate-900/50 mt-12">
-        <div className="max-w-6xl mx-auto px-6 py-16">
+        <div className="max-w-5xl mx-auto px-4 py-16">
           <h2 className="text-2xl font-bold text-white text-center mb-10">How DayZero works</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {[
