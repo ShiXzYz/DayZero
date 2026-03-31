@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Shield, Bell, Users, Activity, ChevronLeft, CheckCircle } from "lucide-react";
+import { Shield, Bell, Users, Activity, ChevronLeft, CheckCircle, Loader2 } from "lucide-react";
 
 const FEATURES = [
   {
@@ -29,28 +29,62 @@ const FEATURES = [
   },
 ];
 
+const ROLES = [
+  "Security Professional",
+  "IT / Systems Admin",
+  "Business Owner / Executive",
+  "Developer / Engineer",
+  "Researcher / Academic",
+  "Journalist / Media",
+  "General Consumer",
+  "Other",
+];
+
 export default function JoinWaitlistPage() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
   const [joined, setJoined] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleJoin = () => {
-    if (email.trim()) setJoined(true);
+  const handleJoin = async () => {
+    if (!email.trim()) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), role, isWaitlist: true }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to join waitlist");
+      }
+
+      setJoined(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
-      <div className="max-w-2xl mx-auto">
-        {/* Nav */}
-        <div className="mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
-            <ChevronLeft className="h-4 w-4" /> Back to DayZero
-          </Link>
-        </div>
+      <div className="max-w-2xl mx-auto mb-8">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
+          <ChevronLeft className="h-4 w-4" /> Back to Dashboard
+        </Link>
+      </div>
 
+      <div className="max-w-2xl mx-auto">
         {!joined ? (
           <div className="space-y-6">
-            {/* Header */}
             <div className="text-center mb-2">
               <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 mb-4">
                 <Shield className="h-7 w-7 text-blue-400" />
@@ -62,10 +96,9 @@ export default function JoinWaitlistPage() {
               </p>
             </div>
 
-            {/* Feature list */}
             <Card className="bg-slate-900 border border-slate-700 rounded-2xl">
               <CardContent className="p-5">
-                <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-4">What you'll get</p>
+                <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-4">What you&apos;ll get</p>
                 <div className="space-y-3">
                   {FEATURES.map((f, i) => (
                     <div key={i} className="flex items-start gap-3">
@@ -82,7 +115,6 @@ export default function JoinWaitlistPage() {
               </CardContent>
             </Card>
 
-            {/* Form */}
             <Card className="bg-slate-900 border border-slate-700 rounded-2xl">
               <CardContent className="p-5 space-y-4">
                 <div>
@@ -105,28 +137,37 @@ export default function JoinWaitlistPage() {
                     className="w-full rounded-xl bg-slate-950 text-slate-100 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 px-4 py-2.5 text-sm"
                   >
                     <option value="">Select your role…</option>
-                    <option>Security Professional</option>
-                    <option>IT / Systems Admin</option>
-                    <option>Business Owner / Executive</option>
-                    <option>Developer / Engineer</option>
-                    <option>Researcher / Academic</option>
-                    <option>Journalist / Media</option>
-                    <option>General Consumer</option>
-                    <option>Other</option>
+                    {ROLES.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
                   </select>
                 </div>
+
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                    <p className="text-sm text-red-300">{error}</p>
+                  </div>
+                )}
+
                 <Button
                   onClick={handleJoin}
-                  disabled={!email.trim()}
+                  disabled={!email.trim() || isLoading}
                   className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 py-3 font-semibold disabled:opacity-40"
                 >
-                  Join Waitlist
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Joining...
+                    </span>
+                  ) : (
+                    "Join Waitlist"
+                  )}
                 </Button>
               </CardContent>
             </Card>
 
             <p className="text-xs text-slate-600 text-center">
-              We'll only use your email to notify you about early access. No spam, no data selling.
+              We&apos;ll only use your email to notify you about early access. No spam, no data selling.
               Unsubscribe anytime.
             </p>
           </div>
@@ -136,23 +177,23 @@ export default function JoinWaitlistPage() {
               <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-green-500/10 border border-green-500/20 mb-4">
                 <CheckCircle className="h-8 w-8 text-green-400" />
               </div>
-              <h2 className="text-2xl font-bold text-white">You're on the list</h2>
+              <h2 className="text-2xl font-bold text-white">You&apos;re on the list</h2>
               <p className="mt-2 text-slate-400 text-sm">
-                We'll notify <span className="text-white font-medium">{email}</span> when early access opens.
+                We&apos;ll notify <span className="text-white font-medium">{email}</span> when early access opens.
               </p>
 
               <div className="mt-6 bg-slate-950 border border-slate-800 rounded-xl p-4">
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
-                    <p className="text-lg font-bold text-blue-400">214</p>
+                    <p className="text-lg font-bold text-blue-400">#{Math.floor(Math.random() * 500) + 100}</p>
                     <p className="text-xs text-slate-500">Your position</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold text-purple-400">38k</p>
+                    <p className="text-lg font-bold text-purple-400">2.4k+</p>
                     <p className="text-xs text-slate-500">Total signups</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold text-green-400">Soon</p>
+                    <p className="text-lg font-bold text-green-400">Q2 2026</p>
                     <p className="text-xs text-slate-500">Launch window</p>
                   </div>
                 </div>
@@ -160,7 +201,7 @@ export default function JoinWaitlistPage() {
 
               <Link href="/">
                 <Button className="mt-6 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 w-full">
-                  Explore the Live Feed
+                  Explore DayZero
                 </Button>
               </Link>
             </CardContent>

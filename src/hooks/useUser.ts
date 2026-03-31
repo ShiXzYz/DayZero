@@ -1,28 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Onboarding } from "@/components/onboarding/Onboarding";
-import { Dashboard } from "@/components/dashboard/Dashboard";
-import { Breach, RiskScore, Alert } from "@/types";
+import { useState, useEffect, useCallback } from "react";
+import { RiskScore, Breach, Alert } from "@/types";
 
-interface UserData {
-  userId: string;
-  email: string;
+interface UserState {
+  userId: string | null;
+  email: string | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+interface UseUserReturn extends UserState {
+  signUp: (email: string) => Promise<void>;
+  signOut: () => void;
+  refreshBreaches: () => Promise<void>;
+  breaches: Breach[];
+  riskScore: RiskScore | null;
+  alerts: Alert[];
 }
 
 const STORAGE_KEY = "dayzero_user";
 
-export default function Home() {
-  const [user, setUser] = useState<UserData | null>(null);
+export function useUser(): UseUserReturn {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{
-    breachCount: number;
-    riskScore: number;
-    breaches?: Breach[];
-    message?: string;
-    isNew?: boolean;
-  } | null>(null);
   const [breaches, setBreaches] = useState<Breach[]>([]);
   const [riskScore, setRiskScore] = useState<RiskScore | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -31,22 +34,32 @@ export default function Home() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        const userData = JSON.parse(stored);
-        setUser(userData);
-        fetchUserData(userData.userId);
+        const { userId: storedUserId, email: storedEmail } = JSON.parse(stored);
+        setUserId(storedUserId);
+        setEmail(storedEmail);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
   }, []);
 
-  const fetchUserData = async (userId: string) => {
+  useEffect(() => {
+    if (userId) {
+      fetchUserData();
+      fetchAlerts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const fetchUserData = async () => {
+    if (!userId) return;
+    
     try {
       const res = await fetch(`/api/users?userId=${userId}`);
       const data = await res.json();
       
       if (data.user) {
-        setBreaches(data.breaches || []);
+        setEmail(data.user.email);
         setRiskScore({
           total: data.user.riskScore || 0,
           breachCount: data.user.breachCount || 0,
@@ -56,48 +69,54 @@ export default function Home() {
           lastUpdated: data.user.lastChecked || new Date().toISOString(),
         });
       }
-
-      const alertsRes = await fetch(`/api/alerts?userId=${userId}`);
-      const alertsData = await alertsRes.json();
-      if (alertsData.alerts) {
-        setAlerts(alertsData.alerts);
+      
+      if (data.breaches) {
+        setBreaches(data.breaches);
       }
     } catch (err) {
       console.error("Error fetching user data:", err);
     }
   };
 
-  const handleSignUp = async (email: string) => {
+  const fetchAlerts = async () => {
+    if (!userId) return;
+    
+    try {
+      const res = await fetch(`/api/alerts?userId=${userId}`);
+      const data = await res.json();
+      
+      if (data.alerts) {
+        setAlerts(data.alerts);
+      }
+    } catch (err) {
+      console.error("Error fetching alerts:", err);
+    }
+  };
+
+  const signUp = useCallback(async (userEmail: string) => {
     setIsLoading(true);
     setError(null);
-    setResult(null);
 
     try {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: userEmail }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to check email");
+        throw new Error(data.error || "Failed to sign up");
       }
 
-      setUser({ userId: data.userId, email });
+      setUserId(data.userId);
+      setEmail(userEmail);
+      
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         userId: data.userId,
-        email,
+        email: userEmail,
       }));
-
-      setResult({
-        breachCount: data.breachCount || 0,
-        riskScore: data.riskScore || 0,
-        breaches: data.breaches || [],
-        message: data.message,
-        isNew: data.isNew,
-      });
 
       if (data.breaches) {
         setBreaches(data.breaches);
@@ -115,29 +134,30 @@ export default function Home() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
+      throw err;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleSignOut = () => {
-    setUser(null);
+  const signOut = useCallback(() => {
+    setUserId(null);
+    setEmail(null);
     setBreaches([]);
     setRiskScore(null);
     setAlerts([]);
-    setResult(null);
     localStorage.removeItem(STORAGE_KEY);
-  };
+  }, []);
 
-  const handleRefresh = async () => {
-    if (!user) return;
-    
+  const refreshBreaches = useCallback(async () => {
+    if (!userId || !email) return;
+
     setIsLoading(true);
     try {
       const res = await fetch("/api/breaches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email, userId: user.userId }),
+        body: JSON.stringify({ email, userId }),
       });
 
       const data = await res.json();
@@ -149,39 +169,23 @@ export default function Home() {
       if (data.riskScore) {
         setRiskScore(data.riskScore);
       }
-
-      const alertsRes = await fetch(`/api/alerts?userId=${user.userId}`);
-      const alertsData = await alertsRes.json();
-      if (alertsData.alerts) {
-        setAlerts(alertsData.alerts);
-      }
     } catch (err) {
-      console.error("Error refreshing:", err);
+      console.error("Error refreshing breaches:", err);
     } finally {
       setIsLoading(false);
     }
+  }, [userId, email]);
+
+  return {
+    userId,
+    email,
+    isLoading,
+    error,
+    signUp,
+    signOut,
+    refreshBreaches,
+    breaches,
+    riskScore,
+    alerts,
   };
-
-  if (!user || result) {
-    return (
-      <Onboarding
-        onComplete={handleSignUp}
-        isLoading={isLoading}
-        error={error}
-        result={result || undefined}
-      />
-    );
-  }
-
-  return (
-    <Dashboard
-      email={user.email}
-      breaches={breaches}
-      riskScore={riskScore}
-      alerts={alerts}
-      onSignOut={handleSignOut}
-      onRefresh={handleRefresh}
-      isRefreshing={isLoading}
-    />
-  );
 }
