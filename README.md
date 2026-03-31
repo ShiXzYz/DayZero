@@ -1,14 +1,28 @@
-# DayZero - Cybersecurity Breach Detection
+# DayZero - Cybersecurity Incident Intelligence
 
-A mobile-first web application that detects user exposure in data breaches and enables immediate, guided response actions without requiring access to user credentials.
+A real-time cybersecurity incident monitoring platform that aggregates data from SEC filings and security news to keep users informed about breaches, ransomware attacks, and security incidents affecting tracked companies.
 
 ## Features
 
-- **Breach Detection** - Check if your email has appeared in known data breaches
-- **Risk Scoring Engine** - Calculates risk level based on breach severity, recency, and data exposure
-- **One-Tap Security Actions** - Prebuilt action flows with deep links to services
-- **Real-time Alerts** - Subscribe to notifications for new breaches
-- **Privacy-First** - No passwords stored, email-only authentication
+- **Real-Time Incident Feed** - Live stream of security incidents from multiple sources
+- **Company Tracking** - Follow companies to receive targeted alerts
+- **Multi-Source Aggregation** - Combines SEC filings, security news, and more
+- **Check Your Exposure** - Optional email/password breach checking via HIBP
+
+## Data Sources (Priority)
+
+| Source | Cost | Description |
+|--------|------|-------------|
+| SEC EDGAR | Free | Mandatory 4-day corporate breach disclosures from publicly traded companies |
+| DataBreaches.net | Free | RSS feed with early breach reporting within 24-72 hours |
+| BleepingComputer | Free | Real-time security news and breach coverage |
+
+## Additional Features (Optional)
+
+| Source | Cost | Description |
+|--------|------|-------------|
+| HIBP Email Search | ~$3.50/mo | Email-specific breach history (opt-in feature) |
+| HIBP Password Check | Free | Password breach lookup via k-anonymity (client-side) |
 
 ## Tech Stack
 
@@ -16,11 +30,11 @@ A mobile-first web application that detects user exposure in data breaches and e
 - **UI Components**: shadcn/ui, Framer Motion
 - **Backend**: Next.js API Routes
 - **Database**: Firebase Firestore
-- **Breach Data**: Have I Been Pwned API
+- **Threat Intel**: SEC EDGAR API, RSS feeds, HIBP API (optional)
 
 ## Setup
 
-### 1. Clone and Install Dependencies
+### 1. Install Dependencies
 
 ```bash
 npm install
@@ -28,42 +42,24 @@ npm install
 
 ### 2. Configure Environment Variables
 
-Copy `.env.example` to `.env.local` and fill in your credentials:
-
 ```bash
 cp .env.example .env.local
 ```
 
-Required environment variables:
+**Required:**
+- `NEXT_PUBLIC_FIREBASE_*` - Firebase configuration
+- `FIREBASE_ADMIN_*` - Firebase admin credentials
 
-- `NEXT_PUBLIC_FIREBASE_API_KEY` - Firebase API key
-- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` - Firebase auth domain
-- `NEXT_PUBLIC_FIREBASE_PROJECT_ID` - Firebase project ID
-- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` - Firebase storage bucket
-- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` - Firebase messaging sender ID
-- `NEXT_PUBLIC_FIREBASE_APP_ID` - Firebase app ID
-- `FIREBASE_ADMIN_PRIVATE_KEY` - Firebase admin private key
-- `FIREBASE_ADMIN_CLIENT_EMAIL` - Firebase admin client email
-- `HIBP_API_KEY` - Have I Been Pwned API key (optional, mock data used if not provided)
+**Optional (for HIBP integration):**
+- `HIBP_API_KEY` - Have I Been Pwned API key (~3.50/month)
 
-### 3. Set Up Firebase
-
-1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
-2. Enable Firestore Database
-3. Create a service account for admin access
-4. Add the credentials to your `.env.local`
-
-### 4. Get Have I Been Pwned API Key (Optional)
-
-Sign up at [haveibeenpwned.com/API/Key](https://haveibeenpwned.com/API/Key) for API access. Without this key, the app uses mock breach data.
-
-### 5. Run Development Server
+### 3. Run Development Server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the app.
+Open [http://localhost:3000](http://localhost:3000)
 
 ## Project Structure
 
@@ -71,94 +67,50 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 src/
 ├── app/
 │   ├── api/
-│   │   ├── users/route.ts      # User signup/auth
-│   │   ├── breaches/route.ts   # Breach checking
-│   │   ├── alerts/route.ts     # Alert management
-│   │   └── subscribe/route.ts  # Alert subscriptions
-│   ├── check-exposure/         # Public breach search
-│   ├── get-alerts/             # Alert subscription
-│   ├── join-waitlist/          # Waitlist signup
+│   │   ├── companies/route.ts    # Company registry
+│   │   ├── incidents/route.ts    # Incident aggregation
+│   │   ├── follow/route.ts       # Company following
+│   │   └── alerts/route.ts       # User alerts
+│   ├── companies/                # Company search/follow page
+│   ├── alerts/                   # Alert management page
+│   ├── check-exposure/          # Optional HIBP email/password check
 │   ├── layout.tsx
-│   └── page.tsx                # Main app entry
-├── components/
-│   ├── dashboard/              # User dashboard
-│   └── onboarding/             # Onboarding flow
-├── hooks/
-│   └── useUser.ts              # User state management
+│   └── page.tsx                  # Main incident feed
 ├── lib/
-│   ├── firebase/                # Firebase config
-│   ├── hibp.ts                 # Have I Been Pwned integration
-│   └── risk-score.ts           # Risk calculation
+│   └── sources/
+│       ├── sec-edgar.ts          # SEC 8-K filings (free)
+│       └── news.ts               # RSS aggregation (free)
 └── types/
-    └── index.ts                # TypeScript types
+    └── index.ts                  # TypeScript definitions
 ```
 
-## API Endpoints
+## Data Model
 
-### POST /api/users
-Create or fetch user by email. Returns breach data and risk score.
-
-### POST /api/breaches
-Check breaches for an email address.
-
-### GET /api/alerts
-Fetch alerts for a user. Supports `?userId=&unreadOnly=true`.
-
-### POST /api/subscribe
-Update notification preferences for a user.
-
-## Database Schema (Firestore)
-
-### users
+### Incident
 ```json
 {
   "id": "string",
-  "email": "string",
-  "emailHash": "string",
-  "riskScore": "number",
-  "breachCount": "number",
-  "notificationPreferences": {...}
-}
-```
-
-### userBreaches
-```json
-{
-  "userId": "string",
-  "breach": {...},
-  "addedDate": "string",
-  "isResolved": "boolean"
-}
-```
-
-### alerts
-```json
-{
-  "userId": "string",
-  "type": "string",
+  "companyId": "string",
+  "companyName": "string",
   "title": "string",
-  "message": "string",
-  "severity": "string",
-  "isRead": "boolean",
-  "createdAt": "string"
+  "summary": "string",
+  "severity": "Critical | High | Medium | Low",
+  "sources": [{
+    "type": "sec_filing | news",
+    "sourceName": "string",
+    "confidence": 0.95
+  }],
+  "discoveredAt": "ISO date"
 }
 ```
 
-### subscriptions
-```json
-{
-  "userId": "string",
-  "email": "string",
-  "topics": "string[]",
-  "severityThreshold": "string",
-  "enableEmail": "boolean",
-  "isActive": "boolean"
-}
-```
+## Privacy
 
-## Learn More
+- No personal data collection
+- Email/password checking is optional and client-side
+- HIBP API calls are made directly (we don't store results)
+- Company following stored in Firebase with user consent
 
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Firebase Documentation](https://firebase.google.com/docs)
-- [Have I Been Pwned API](https://haveibeenpwned.com/API/v3)
-- [shadcn/ui](https://ui.shadcn.com)
+## License
+
+Private - All rights reserved

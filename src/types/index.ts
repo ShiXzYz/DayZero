@@ -1,4 +1,54 @@
 export type Severity = "Critical" | "High" | "Medium" | "Low";
+export type SourceType = "sec_filing" | "dark_web" | "hibp" | "news" | "manual";
+export type IncidentStatus = "active" | "investigating" | "resolved" | "false_positive";
+
+export interface Company {
+  id: string;
+  name: string;
+  domain: string;
+  ticker?: string;
+  industry: string;
+  size?: "startup" | "small" | "medium" | "large" | "enterprise";
+  description?: string;
+  logoUrl?: string;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IncidentSource {
+  type: SourceType;
+  sourceName: string;
+  url?: string;
+  confidence: number;
+  rawData?: Record<string, unknown>;
+  discoveredAt: string;
+}
+
+export interface ExposedData {
+  category: "credentials" | "personal" | "financial" | "medical" | "corporate" | "other";
+  types: string[];
+  estimatedRecords?: number;
+}
+
+export interface Incident {
+  id: string;
+  companyId: string;
+  companyName: string;
+  companyDomain: string;
+  title: string;
+  summary: string;
+  description: string;
+  severity: Severity;
+  status: IncidentStatus;
+  sources: IncidentSource[];
+  exposedData: ExposedData[];
+  affectedUsers?: number;
+  breachDate?: string;
+  discoveredAt: string;
+  updatedAt: string;
+  reportedAt?: string;
+}
 
 export interface User {
   id: string;
@@ -6,9 +56,6 @@ export interface User {
   emailHash: string;
   createdAt: string;
   updatedAt: string;
-  riskScore: number;
-  breachCount: number;
-  lastChecked?: string;
   notificationPreferences: NotificationPreferences;
   fcmToken?: string;
 }
@@ -17,68 +64,41 @@ export interface NotificationPreferences {
   email: boolean;
   push: boolean;
   severityThreshold: Severity;
-  topics: string[];
+  industryFilters?: string[];
+  alertNewIncidents: boolean;
+  alertRiskIncrease: boolean;
 }
 
-export interface Breach {
-  id: string;
-  name: string;
-  title: string;
-  domain: string;
-  breachDate: string;
-  addedDate: string;
-  modifiedDate: string;
-  pwnCount: number;
-  description: string;
-  logoPath: string;
-  dataClasses: string[];
-  isVerified: boolean;
-  isFabricated: boolean;
-  isSensitive: boolean;
-  isRetired: boolean;
-  isSpamList: boolean;
-  isMalware: boolean;
-  isSubscriptionFree: boolean;
-}
-
-export interface UserBreach {
+export interface Follow {
   id: string;
   userId: string;
-  breach: Breach;
-  addedDate: string;
-  isResolved: boolean;
-  resolvedAt?: string;
-}
-
-export interface Action {
-  id: string;
-  userId: string;
-  userBreachId: string;
-  type: "change_password" | "enable_2fa" | "review_account" | "contact_support" | "monitor_credit" | "custom";
-  title: string;
-  description: string;
-  deepLink?: string;
-  isCompleted: boolean;
-  completedAt?: string;
+  companyId: string;
+  companyName: string;
+  createdAt: string;
+  notifyNewIncidents: boolean;
+  notifyRiskIncrease: boolean;
 }
 
 export interface Alert {
   id: string;
   userId: string;
-  type: "new_breach" | "risk_increase" | "action_reminder" | "weekly_summary";
+  incidentId: string;
+  type: "new_incident" | "risk_increase" | "status_update" | "data_update";
   title: string;
   message: string;
   severity: Severity;
-  relatedBreachId?: string;
   isRead: boolean;
   createdAt: string;
 }
 
 export interface RiskScore {
+  companyId: string;
   total: number;
-  breachCount: number;
+  level: "none" | "low" | "medium" | "high" | "critical";
+  incidentCount: number;
   dataExposureScore: number;
   recencyScore: number;
+  sourceDiversity: number;
   severityBreakdown: {
     critical: number;
     high: number;
@@ -86,4 +106,26 @@ export interface RiskScore {
     low: number;
   };
   lastUpdated: string;
+}
+
+export interface SECFiling {
+  accessionNumber: string;
+  companyName: string;
+  ticker: string;
+  formType: string;
+  filedDate: string;
+  documentUrl: string;
+  items: string[];
+  content: string;
+}
+
+export interface NewsArticle {
+  id: string;
+  title: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  summary: string;
+  relatedCompanies: string[];
+  tags: string[];
 }
