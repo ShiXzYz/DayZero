@@ -180,30 +180,37 @@ export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Pr
 
 async function fetchSECIncidents(): Promise<Incident[]> {
   try {
-    let filings = await fetchRecent8KFilings(7);
+    console.log("Fetching SEC 8-K filings...");
+    
+    let filings = await fetchRecent8KFilings(30);
 
+    console.log(`Found ${filings.length} 8-K filings from SEC EDGAR`);
+    
     if (filings.length === 0) {
-      console.warn("No 8-K filings found in the last 7 days; expanding search window to 30 days.");
-      filings = await fetchRecent8KFilings(30);
+      console.warn("No 8-K filings found in the last 30 days.");
+      return [];
     }
     
-    return filings
-      .filter(filing => isCybersecurityFiling(filing))
-      .map(filing => ({
+    const cyberFilings = filings.filter(filing => isCybersecurityFiling(filing));
+    console.log(`${cyberFilings.length} filings contain cybersecurity keywords`);
+    
+    if (cyberFilings.length === 0) {
+      console.log("No cyber-specific filings found, showing all 8-K filings from monitored companies");
+      return filings.map(filing => ({
         id: `sec-${filing.accessionNumber}`,
         companyId: "",
         companyName: filing.companyName,
         companyDomain: `${filing.ticker.toLowerCase()}.com`,
         title: `${filing.companyName} - SEC ${filing.formType}`,
-        summary: "Cybersecurity incident disclosure filed with SEC",
-        description: "Material cybersecurity incident disclosure filed with SEC under new 4-day disclosure rules.",
+        summary: "SEC filing detected - may contain material event disclosures",
+        description: "SEC 8-K filing for public company. 8-K forms are used to report material events to the SEC including leadership changes, financial results, and material contracts.",
         severity: determineSeverityFromSEC(filing.content || filing.formType),
         status: "investigating" as const,
         sources: [{
           type: "sec_filing" as const,
           sourceName: "SEC EDGAR",
           url: filing.documentUrl,
-          confidence: 0.95,
+          confidence: 0.7,
           discoveredAt: filing.filedDate,
         }],
         exposedData: [],
@@ -212,6 +219,31 @@ async function fetchSECIncidents(): Promise<Incident[]> {
         reportedAt: filing.filedDate,
         updatedAt: new Date().toISOString(),
       }));
+    }
+    
+    return cyberFilings.map(filing => ({
+      id: `sec-${filing.accessionNumber}`,
+      companyId: "",
+      companyName: filing.companyName,
+      companyDomain: `${filing.ticker.toLowerCase()}.com`,
+      title: `${filing.companyName} - SEC ${filing.formType}`,
+      summary: "Cybersecurity incident disclosure filed with SEC",
+      description: "Material cybersecurity incident disclosure filed with SEC under new 4-day disclosure rules.",
+      severity: determineSeverityFromSEC(filing.content || filing.formType),
+      status: "investigating" as const,
+      sources: [{
+        type: "sec_filing" as const,
+        sourceName: "SEC EDGAR",
+        url: filing.documentUrl,
+        confidence: 0.95,
+        discoveredAt: filing.filedDate,
+      }],
+      exposedData: [],
+      breachDate: filing.filedDate,
+      discoveredAt: filing.filedDate,
+      reportedAt: filing.filedDate,
+      updatedAt: new Date().toISOString(),
+    }));
   } catch (error) {
     console.error("Error fetching SEC incidents:", error);
     throw error;
