@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
 import { User, SubscriptionTier } from "@/types";
 import { supabase, isSupabaseConfigured, getSupabaseClient } from "@/lib/supabase/client";
 
@@ -36,6 +36,7 @@ const DEFAULT_FREE_USER: User = {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const lastProcessedUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         console.log("[AuthContext] Restored session for user:", session.user.id);
+        lastProcessedUserIdRef.current = session.user.id;
         fetchUserProfile(session.user.id);
       } else {
         console.log("[AuthContext] No session found, using default user");
@@ -82,10 +84,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, session) => {
         console.log("[AuthContext] Auth state changed:", event, !!session?.user);
         if (session?.user) {
-          await fetchUserProfile(session.user.id);
+          // Only fetch if this is a new user
+          if (lastProcessedUserIdRef.current !== session.user.id) {
+            console.log("[AuthContext] New user session, fetching profile");
+            lastProcessedUserIdRef.current = session.user.id;
+            await fetchUserProfile(session.user.id);
+          }
         } else {
-          setUser(DEFAULT_FREE_USER);
-        }
+          lastProcessedUserIdRef.current = null;
+          setUser(DEFAULT_FREE_USER);        }
       }
     );
 
@@ -94,14 +101,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function fetchUserProfile(userId: string) {
     try {
-      const { data, error } = await supabase
+      const supabaseClient = getSupabaseClient();
+      if (!supabaseClient) {
+        console.error("[AuthContext] Supabase client not available");
+        setUser(DEFAULT_FREE_USER);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabaseClient
         .from("users")
         .select("*")
         .eq("id", userId)
         .single();
 
       if (error && error.code === "PGRST116") {
-        const session = await supabase.auth.getSession();
+        // User doesn't exist, create them
+        console.log("[AuthContext] User not found, creating new user:", userId);
+        const session = await supabaseClient.auth.getSession();
         if (session.data.session?.user) {
           const { email, id } = session.data.session.user;
           const newUser: User = {
@@ -116,17 +133,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             hibpChecksRemaining: 1,
           };
           
-          await supabase.from("users").insert(newUser);
-          setUser(newUser);
+          const { error: insertError } = await supabaseClient.from("users").insert(newUser);
+          if (insertError) {
+            console.error("[AuthContext] Error creating user:", insertError);
+            setUser(newUser);
+          } else {
+            console.log("[AuthContext] User created successfully");
+            setUser(newUser);
+          }
         }
+      } else if (error) {
+        // Other error
+        console.error("[AuthContext] Error fetching user profile:", error);
+        setUser(DEFAULT_FREE_USER);
       } else if (data) {
+        // User found
+        console.log("[AuthContext] User profile loaded:", data.id);
         setUser({
           ...DEFAULT_FREE_USER,
           ...data,
         });
+      } else {
+        // No data and no error - shouldn't happen
+        console.warn("[AuthContext] No user data returned");
+        setUser(DEFAULT_FREE_USER);
       }
     } catch (error) {
-      console.error("Error fetching user profile:", error);
+      console.error("[AuthContext] Exception in fetchUserProfile:", error);
+      setUser(DEFAULT_FREE_USER);
     } finally {
       setLoading(false);
     }

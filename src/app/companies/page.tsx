@@ -41,7 +41,7 @@ const INDUSTRIES = [
 ];
 
 export default function CompaniesPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [query, setQuery] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("All Industries");
   const [companies] = useState<Company[]>(POPULAR_COMPANIES);
@@ -53,14 +53,19 @@ export default function CompaniesPage() {
   const isPro = user?.subscriptionTier !== "free";
 
   useEffect(() => {
+    if (loading) {
+      console.log("[Companies] Auth still loading, waiting...");
+      return;
+    }
+    
     if (user?.id && !user.id.startsWith("anonymous")) {
       console.log("[Companies] Fetching follows for user:", user.id);
       fetchFollows(user.id);
     } else {
-      console.log("[Companies] User not authenticated, skipping follows fetch");
+      console.log("[Companies] User not authenticated");
       setFollowedCompanies(new Set());
     }
-  }, [user?.id]);
+  }, [user?.id, loading]);
 
   const fetchFollows = async (uid: string) => {
     try {
