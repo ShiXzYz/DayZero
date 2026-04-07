@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient();
     
     if (!supabase) {
-      console.error(\"[API /alerts GET] Supabase not configured\");
-      return NextResponse.json({ alerts: [], error: \"Database not configured\", isConfigured: false }, { status: 503 });
+      console.error("[API /alerts GET] Supabase not configured");
+      return NextResponse.json({ alerts: [], error: "Database not configured", isConfigured: false }, { status: 503 });
     }
 
     const { data: alerts, error } = await supabase
