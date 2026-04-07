@@ -202,6 +202,12 @@ export default function CompaniesPage() {
               {error}
             </div>
           )}
+          {loading && (
+            <div className="mt-3 flex items-center gap-2 text-blue-400">
+              <div className="h-4 w-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+              <span className="text-sm">Loading your account...</span>
+            </div>
+          )}
         </motion.div>
 
         {showLimitUpgrade && (
@@ -288,7 +294,7 @@ export default function CompaniesPage() {
                     <div className="mt-4 flex items-center gap-2">
                       <Button
                         onClick={() => handleFollow(company)}
-                        disabled={isLoading || (!isPro && followedCompanies.size >= maxFollows && !followedCompanies.has(company.id))}
+                        disabled={loading || isLoading || !user?.email || (!isPro && followedCompanies.size >= maxFollows && !followedCompanies.has(company.id))}
                         variant={followedCompanies.has(company.id) ? "outline" : "default"}
                         className={`flex-1 rounded-xl text-xs ${
                           followedCompanies.has(company.id)
