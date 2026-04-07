@@ -94,19 +94,19 @@ function extractTags(text: string): string[] {
 }
 
 function getConsumerFriendlySummary(title: string, content: string): { summary: string; exposedTypes: string[]; threatType: string } {
-  const text = title + " " + content;
+  const articleText = title + " " + content;
   const exposedTypes: string[] = [];
   let threatType = "Security incident reported";
 
-  for (const { pattern, text } of DATA_EXPOSURE_PATTERNS) {
-    if (pattern.test(text)) {
-      exposedTypes.push(text);
+  for (const item of DATA_EXPOSURE_PATTERNS) {
+    if (item.pattern.test(articleText)) {
+      exposedTypes.push(item.text);
     }
   }
 
-  for (const { pattern, text } of THREAT_TYPE_MAPPING) {
-    if (pattern.test(text)) {
-      threatType = text;
+  for (const item of THREAT_TYPE_MAPPING) {
+    if (item.pattern.test(articleText)) {
+      threatType = item.text;
       break;
     }
   }
@@ -192,8 +192,11 @@ export async function fetchAllNewsFeeds(): Promise<NewsArticle[]> {
       return items.map(item => {
         const { summary, exposedTypes } = getConsumerFriendlySummary(item.title, item.description);
         
+        const idString = `${feed.name}|${item.title}|${item.pubDate}`;
+        const hash = Buffer.from(idString).toString("base64").replace(/[/+=]/g, "");
+        
         return {
-          id: `${feed.name}-${Buffer.from(item.link || item.title).toString("base64").slice(0, 12)}`,
+          id: `news-${hash}`,
           title: item.title,
           source: feed.name,
           url: item.link,

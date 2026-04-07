@@ -140,13 +140,13 @@ export default function FeedPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <nav className="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <Shield className="h-6 w-6 text-blue-400" />
             <span className="text-xl font-bold text-white tracking-tight">DayZero</span>
             <span className="ml-2 text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-medium">
               LIVE
             </span>
-          </div>
+          </Link>
           <div className="hidden md:flex items-center gap-6 text-sm text-slate-400">
             <Link href="/" className="text-white hover:text-white transition-colors">Feed</Link>
             <Link href="/companies" className="hover:text-white transition-colors">Companies</Link>
@@ -412,6 +412,28 @@ export default function FeedPage() {
                     <div className="mt-4 flex items-center justify-between">
                       <div className="flex items-center gap-4 text-xs text-slate-500">
                         <span>Confidence: {Math.round((incident.sources[0]?.confidence || 0) * 100)}%</span>
+                        {incident.riskScore && (
+                          <span className={`flex items-center gap-1.5 ${
+                            incident.riskScore.label === "Critical" ? "text-red-400" :
+                            incident.riskScore.label === "High" ? "text-orange-400" :
+                            incident.riskScore.label === "Medium" ? "text-yellow-400" :
+                            "text-green-400"
+                          }`}>
+                            <span className="font-medium">Risk:</span>
+                            <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full ${
+                                  incident.riskScore.label === "Critical" ? "bg-red-500" :
+                                  incident.riskScore.label === "High" ? "bg-orange-500" :
+                                  incident.riskScore.label === "Medium" ? "bg-yellow-500" :
+                                  "bg-green-500"
+                                }`}
+                                style={{ width: `${incident.riskScore.overall}%` }}
+                              />
+                            </div>
+                            <span className="font-medium">{incident.riskScore.overall}</span>
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         {incident.sources[0]?.url && (
@@ -432,6 +454,23 @@ export default function FeedPage() {
                         </Link>
                       </div>
                     </div>
+
+                    {user?.subscriptionTier !== "free" && (
+                      <div className="mt-3 pt-3 border-t border-slate-800 flex gap-2">
+                        <Link
+                          href="/check-exposure"
+                          className="flex-1 text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 rounded-lg px-3 py-2 text-center font-medium transition-colors"
+                        >
+                          Check if affected
+                        </Link>
+                        <Link
+                          href={`/companies?follow=${encodeURIComponent(incident.companyName)}`}
+                          className="flex-1 text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-500/30 rounded-lg px-3 py-2 text-center font-medium transition-colors"
+                        >
+                          Get alerts
+                        </Link>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>

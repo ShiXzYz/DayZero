@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient();
     
     if (!supabase) {
-      return NextResponse.json({ follows: [] });
+      return NextResponse.json({ follows: [], error: "Database not configured" });
     }
 
     const { data: follows, error } = await supabase
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error("Supabase error:", error);
       return NextResponse.json(
-        { error: "Failed to fetch follows" },
+        { error: "Failed to fetch follows", follows: [] },
         { status: 500 }
       );
     }
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching follows:", error);
     return NextResponse.json(
-      { error: "Failed to fetch follows" },
+      { error: "Failed to fetch follows", follows: [] },
       { status: 500 }
     );
   }
@@ -66,11 +66,10 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     
     if (!supabase) {
-      return NextResponse.json({
-        follow: { id: `mock-${Date.now()}`, userId, companyId, companyName, isDemo: true },
-        isNew: true,
-        isDemo: true,
-      });
+      return NextResponse.json(
+        { error: "Database not configured" },
+        { status: 500 }
+      );
     }
 
     const { data: existing } = await supabase
@@ -148,7 +147,10 @@ export async function DELETE(request: NextRequest) {
     const supabase = getSupabaseClient();
     
     if (!supabase) {
-      return NextResponse.json({ success: true, isDemo: true });
+      return NextResponse.json(
+        { error: "Database not configured" },
+        { status: 500 }
+      );
     }
 
     if (followId) {

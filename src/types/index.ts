@@ -32,6 +32,15 @@ export interface ExposedData {
   estimatedRecords?: number;
 }
 
+export interface RiskScore {
+  overall: number;
+  severity: number;
+  dataExposure: number;
+  reach: number;
+  recency: number;
+  label: "Critical" | "High" | "Medium" | "Low";
+}
+
 export interface Incident {
   id: string;
   companyId: string;
@@ -49,6 +58,7 @@ export interface Incident {
   discoveredAt: string;
   updatedAt: string;
   reportedAt?: string;
+  riskScore?: RiskScore;
 }
 
 export interface User {
@@ -97,7 +107,7 @@ export interface Alert {
   createdAt: string;
 }
 
-export interface RiskScore {
+export interface CompanyRiskScore {
   companyId: string;
   total: number;
   level: "none" | "low" | "medium" | "high" | "critical";

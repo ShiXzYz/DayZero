@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient();
     
     if (!supabase) {
-      return NextResponse.json({ alerts: [] });
+      return NextResponse.json({ alerts: [], error: "Database not configured" });
     }
 
     const { data: alerts, error } = await supabase

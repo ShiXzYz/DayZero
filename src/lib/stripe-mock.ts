@@ -44,7 +44,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     tier: "pro",
     name: "Pro",
-    price: 9.99,
+    price: 4.99,
     priceId: "price_pro",
     features: [
       "Everything in Free",

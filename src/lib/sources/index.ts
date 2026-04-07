@@ -5,6 +5,64 @@ import { getCachedIncidents, setCachedIncidents } from "@/lib/cache/incidents";
 import { getSupabaseClient } from "@/lib/supabase/admin";
 import { v4 as uuidv4 } from "uuid";
 
+export interface RiskScore {
+  overall: number;
+  severity: number;
+  dataExposure: number;
+  reach: number;
+  recency: number;
+  label: "Critical" | "High" | "Medium" | "Low";
+}
+
+export function calculateRiskScore(incident: Partial<Incident>): RiskScore {
+  let severity = 0;
+  let dataExposure = 0;
+  let reach = 0;
+  let recency = 0;
+
+  switch (incident.severity) {
+    case "Critical": severity = 40; break;
+    case "High": severity = 30; break;
+    case "Medium": severity = 15; break;
+    case "Low": severity = 5; break;
+    default: severity = 10;
+  }
+
+  const exposed = incident.exposedData || [];
+  const exposedCategories = exposed.map(e => e.category);
+  const exposedTypes = exposed.flatMap(e => e.types);
+  
+  if (exposedCategories.includes("credentials")) dataExposure += 25;
+  if (exposedCategories.includes("financial")) dataExposure += 25;
+  if (exposedCategories.includes("medical")) dataExposure += 20;
+  if (exposedTypes.some(t => t.toLowerCase().includes("ssn") || t.toLowerCase().includes("social security"))) dataExposure += 30;
+  if (exposedCategories.includes("personal")) dataExposure += 15;
+
+  if (incident.sources?.[0]?.type === "sec_filing") reach += 15;
+  
+  const companyName = incident.companyName?.toLowerCase() || "";
+  const bigTech = ["microsoft", "apple", "google", "amazon", "meta", "facebook", "tesla", "nvidia", "uber", "netflix"];
+  if (bigTech.some(t => companyName.includes(t))) reach += 10;
+
+  const discoveredAt = incident.discoveredAt ? new Date(incident.discoveredAt).getTime() : Date.now();
+  const daysSince = (Date.now() - discoveredAt) / (1000 * 60 * 60 * 24);
+  
+  if (daysSince < 1) recency = 20;
+  else if (daysSince < 7) recency = 15;
+  else if (daysSince < 30) recency = 10;
+  else recency = 5;
+
+  const overall = Math.min(100, severity + dataExposure + reach + recency);
+
+  let label: RiskScore["label"];
+  if (overall >= 75) label = "Critical";
+  else if (overall >= 50) label = "High";
+  else if (overall >= 25) label = "Medium";
+  else label = "Low";
+
+  return { overall, severity, dataExposure, reach, recency, label };
+}
+
 export interface SourceConfig {
   secEdgar: boolean;
   news: boolean;
@@ -216,8 +274,13 @@ export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Pr
     };
   }
 
-  const sortedIncidents = incidents.sort(
-    (a, b) => new Date(b.discoveredAt).getTime() - new Date(a.discoveredAt).getTime()
+  const incidentsWithRisk = incidents.map(incident => ({
+    ...incident,
+    riskScore: calculateRiskScore(incident),
+  }));
+
+  const sortedIncidents = incidentsWithRisk.sort(
+    (a, b) => (b.riskScore?.overall || 0) - (a.riskScore?.overall || 0)
   );
 
   setCachedIncidents(sortedIncidents);
@@ -273,7 +336,7 @@ async function fetchNewsIncidents(): Promise<Incident[]> {
     const articles = await fetchAllNewsFeeds();
     
     return articles.slice(0, 50).map(article => ({
-      id: `news-${article.id}`,
+      id: article.id,
       companyId: "",
       companyName: article.relatedCompanies[0] || article.source,
       companyDomain: "",

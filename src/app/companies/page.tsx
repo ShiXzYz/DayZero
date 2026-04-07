@@ -53,10 +53,10 @@ export default function CompaniesPage() {
   const isPro = user?.subscriptionTier !== "free";
 
   useEffect(() => {
-    if (user?.id && !user.id.startsWith("anonymous")) {
+    if (user?.id && user?.email) {
       fetchFollows(user.id);
     }
-  }, [user?.id]);
+  }, [user?.id, user?.email]);
 
   const fetchFollows = async (uid: string) => {
     try {
@@ -71,7 +71,7 @@ export default function CompaniesPage() {
   };
 
   const handleFollow = async (company: Company) => {
-    if (!user?.id || user.id.startsWith("anonymous")) {
+    if (!user?.id || !user?.email) {
       return;
     }
 

@@ -15,8 +15,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Alert, Severity } from "@/types";
-
-const STORAGE_KEY = "dayzero_user";
+import { useAuth } from "@/contexts/AuthContext";
 
 const SEVERITY_COLORS: Record<Severity, string> = {
   Critical: "bg-red-500/20 text-red-300 border-red-500/30",
@@ -26,26 +25,20 @@ const SEVERITY_COLORS: Record<Severity, string> = {
 };
 
 export default function AlertsPage() {
-  const [userId, setUserId] = useState<string | null>(null);
+  const { user } = useAuth();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
+  const isAuthenticated = user && user.email;
+
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const userData = JSON.parse(stored);
-        setUserId(userData.userId);
-        fetchAlerts(userData.userId);
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-      }
+    if (isAuthenticated && user?.id) {
+      fetchAlerts(user.id);
     } else {
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAuthenticated, user?.id]);
 
   const fetchAlerts = async (uid: string) => {
     setIsLoading(true);
@@ -89,10 +82,10 @@ export default function AlertsPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <nav className="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-50">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <Shield className="h-6 w-6 text-blue-400" />
             <span className="text-xl font-bold text-white tracking-tight">DayZero</span>
-          </div>
+          </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" className="rounded-xl">
               <Settings className="h-5 w-5 text-slate-400" />
@@ -120,7 +113,7 @@ export default function AlertsPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => userId && fetchAlerts(userId)}
+                onClick={() => user?.id && fetchAlerts(user.id)}
                 className="rounded-xl"
               >
                 <RefreshCw className={`h-4 w-4 text-slate-400 ${isLoading ? "animate-spin" : ""}`} />
@@ -157,7 +150,7 @@ export default function AlertsPage() {
           </button>
         </div>
 
-        {!userId ? (
+        {!isAuthenticated ? (
           <Card className="bg-slate-900 border-slate-700 rounded-2xl">
             <CardContent className="p-8 text-center">
               <BellOff className="h-10 w-10 text-slate-600 mx-auto mb-3" />
@@ -165,9 +158,9 @@ export default function AlertsPage() {
               <p className="text-sm text-slate-400 mt-1">
                 Create an account to receive personalized breach alerts.
               </p>
-              <Link href="/">
+              <Link href="/auth/login">
                 <Button className="mt-4 rounded-xl bg-blue-600 hover:bg-blue-500">
-                  Get Started
+                  Sign In
                 </Button>
               </Link>
             </CardContent>
