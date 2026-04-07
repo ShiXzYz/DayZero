@@ -55,22 +55,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const supabaseClient = getSupabaseClient();
     if (!supabaseClient) {
+      console.error("[AuthContext] Supabase client failed to initialize");
       setUser(DEFAULT_FREE_USER);
       setLoading(false);
       return;
     }
 
+    // First, try to restore session from localStorage
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
+        console.log("[AuthContext] Restored session for user:", session.user.id);
         fetchUserProfile(session.user.id);
       } else {
+        console.log("[AuthContext] No session found, using default user");
         setUser(DEFAULT_FREE_USER);
         setLoading(false);
       }
+    }).catch(error => {
+      console.error("[AuthContext] Error getting session:", error);
+      setUser(DEFAULT_FREE_USER);
+      setLoading(false);
     });
 
+    // Set up listener for auth state changes
     const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("[AuthContext] Auth state changed:", event, !!session?.user);
         if (session?.user) {
           await fetchUserProfile(session.user.id);
         } else {

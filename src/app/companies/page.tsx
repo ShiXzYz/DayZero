@@ -53,10 +53,14 @@ export default function CompaniesPage() {
   const isPro = user?.subscriptionTier !== "free";
 
   useEffect(() => {
-    if (user?.id && user?.email) {
+    if (user?.id && !user.id.startsWith("anonymous")) {
+      console.log("[Companies] Fetching follows for user:", user.id);
       fetchFollows(user.id);
+    } else {
+      console.log("[Companies] User not authenticated, skipping follows fetch");
+      setFollowedCompanies(new Set());
     }
-  }, [user?.id, user?.email]);
+  }, [user?.id]);
 
   const fetchFollows = async (uid: string) => {
     try {
@@ -65,13 +69,17 @@ export default function CompaniesPage() {
       if (data.follows) {
         setFollowedCompanies(new Set(data.follows.map((f: Follow) => f.companyId)));
       }
+      if (data.error) {
+        console.warn("[Companies] Error fetching follows:", data.error);
+      }
     } catch (error) {
-      console.error("Error fetching follows:", error);
+      console.error("[Companies] Error fetching follows:", error);
     }
   };
 
   const handleFollow = async (company: Company) => {
-    if (!user?.id || !user?.email) {
+    if (!user?.id || user.id.startsWith("anonymous")) {
+      console.warn("[Companies] Cannot follow: user not authenticated");
       return;
     }
 
@@ -85,16 +93,20 @@ export default function CompaniesPage() {
     setIsLoading(true);
     try {
       if (isFollowed) {
-        await fetch(`/api/follow?userId=${user.id}&companyId=${company.id}`, {
+        const res = await fetch(`/api/follow?userId=${user.id}&companyId=${company.id}`, {
           method: "DELETE",
         });
+        if (!res.ok) {
+          console.error("[Companies] Failed to unfollow:", res.status);
+          return;
+        }
         setFollowedCompanies(prev => {
           const next = new Set(prev);
           next.delete(company.id);
           return next;
         });
       } else {
-        await fetch("/api/follow", {
+        const res = await fetch("/api/follow", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -103,10 +115,15 @@ export default function CompaniesPage() {
             companyName: company.name,
           }),
         });
+        if (!res.ok) {
+          const error = await res.json();
+          console.error("[Companies] Failed to follow:", error);
+          return;
+        }
         setFollowedCompanies(prev => new Set(prev).add(company.id));
       }
     } catch (error) {
-      console.error("Error toggling follow:", error);
+      console.error("[Companies] Error toggling follow:", error);
     } finally {
       setIsLoading(false);
     }
