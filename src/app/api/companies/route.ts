@@ -1,69 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/supabase/admin";
-
-const POPULAR_COMPANIES = [
-  { id: "1", name: "Microsoft", domain: "microsoft.com", industry: "Technology", is_public: true },
-  { id: "2", name: "Google", domain: "google.com", industry: "Technology", is_public: true },
-  { id: "3", name: "Amazon", domain: "amazon.com", industry: "Retail", is_public: true },
-  { id: "4", name: "Apple", domain: "apple.com", industry: "Technology", is_public: true },
-  { id: "5", name: "Meta", domain: "meta.com", industry: "Technology", is_public: true },
-  { id: "6", name: "Netflix", domain: "netflix.com", industry: "Technology", is_public: true },
-  { id: "7", name: "JPMorgan Chase", domain: "jpmorganchase.com", industry: "Finance", is_public: true },
-  { id: "8", name: "Walmart", domain: "walmart.com", industry: "Retail", is_public: true },
-];
+import { aggregateIncidents } from "@/lib/sources";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q");
     const industry = searchParams.get("industry");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const limit = parseInt(searchParams.get("limit") || "50");
 
-    const supabase = getSupabaseClient();
-    
-    if (!supabase) {
-      console.warn("[API /companies GET] Supabase not configured, using demo data");
-      let companies = POPULAR_COMPANIES;
-      if (query) {
-        companies = companies.filter(c => 
-          c.name.toLowerCase().includes(query.toLowerCase()) ||
-          c.domain.toLowerCase().includes(query.toLowerCase())
-        );
+    const incidentsResult = await aggregateIncidents();
+    const incidents = incidentsResult.incidents;
+
+    const companyMap = new Map<string, any>();
+    for (const incident of incidents) {
+      const name = incident.companyName;
+      if (!companyMap.has(name)) {
+        const domain = name.toLowerCase().replace(/[^a-z0-9]/g, "") + ".com";
+        companyMap.set(name, {
+          id: name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+          name,
+          domain,
+          industry: "Technology",
+          isPublic: true,
+          incidentCount: 1
+        });
+      } else {
+        companyMap.get(name).incidentCount++;
       }
-      if (industry) {
-        companies = companies.filter(c => c.industry === industry);
-      }
-      return NextResponse.json({ companies: companies.slice(0, limit), isDemo: true });
     }
-    
-    let queryBuilder = supabase
-      .from("companies")
-      .select("*")
-      .limit(limit);
+
+    let companies = Array.from(companyMap.values())
+      .sort((a, b) => b.incidentCount - a.incidentCount);
 
     if (query) {
-      queryBuilder = queryBuilder.ilike("name", `%${query}%`);
-    }
-
-    if (industry) {
-      queryBuilder = queryBuilder.eq("industry", industry);
-    }
-
-    const { data: companies, error } = await queryBuilder;
-
-    if (error) {
-      console.error("Supabase error:", error);
-      return NextResponse.json(
-        { companies: POPULAR_COMPANIES, error: error.message, isDemo: true },
-        { status: 200 }
+      companies = companies.filter(c => 
+        c.name.toLowerCase().includes(query.toLowerCase()) ||
+        c.domain.toLowerCase().includes(query.toLowerCase())
       );
     }
+    
+    if (industry) {
+      companies = companies.filter(c => c.industry === industry);
+    }
 
-    return NextResponse.json({ companies: companies || POPULAR_COMPANIES });
+    return NextResponse.json({ 
+      companies: companies.slice(0, limit),
+      totalCount: companyMap.size
+    });
   } catch (error) {
     console.error("Error fetching companies:", error);
     return NextResponse.json(
-      { error: "Failed to fetch companies" },
+      { error: "Failed to fetch companies", companies: [] },
       { status: 500 }
     );
   }

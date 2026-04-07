@@ -12,22 +12,12 @@ import {
   Plus,
   Bell,
   Check,
+  RefreshCw,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Company, Follow } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { UpgradePrompt, FreeLimitBadge } from "@/components/UpgradePrompt";
-
-const POPULAR_COMPANIES: Company[] = [
-  { id: "1", name: "Microsoft", domain: "microsoft.com", industry: "Technology", isPublic: true, createdAt: "", updatedAt: "" },
-  { id: "2", name: "Google", domain: "google.com", industry: "Technology", isPublic: true, createdAt: "", updatedAt: "" },
-  { id: "3", name: "Amazon", domain: "amazon.com", industry: "Retail", isPublic: true, createdAt: "", updatedAt: "" },
-  { id: "4", name: "Apple", domain: "apple.com", industry: "Technology", isPublic: true, createdAt: "", updatedAt: "" },
-  { id: "5", name: "Meta", domain: "meta.com", industry: "Technology", isPublic: true, createdAt: "", updatedAt: "" },
-  { id: "6", name: "Netflix", domain: "netflix.com", industry: "Technology", isPublic: true, createdAt: "", updatedAt: "" },
-  { id: "7", name: "JPMorgan Chase", domain: "jpmorganchase.com", industry: "Finance", isPublic: true, createdAt: "", updatedAt: "" },
-  { id: "8", name: "Walmart", domain: "walmart.com", industry: "Retail", isPublic: true, createdAt: "", updatedAt: "" },
-];
 
 const INDUSTRIES = [
   "All Industries",
@@ -44,11 +34,12 @@ export default function CompaniesPage() {
   const { user, loading } = useAuth();
   const [query, setQuery] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("All Industries");
-  const [companies] = useState<Company[]>(POPULAR_COMPANIES);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [followedCompanies, setFollowedCompanies] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [showLimitUpgrade, setShowLimitUpgrade] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [totalCompanies, setTotalCompanies] = useState(0);
 
   const maxFollows = user?.maxCompanyFollows || 3;
   const isPro = user?.subscriptionTier !== "free";
@@ -69,6 +60,26 @@ export default function CompaniesPage() {
       setFollowedCompanies(new Set());
     }
   }, [user?.id, user?.email, loading]);
+
+  useEffect(() => {
+    fetchCompanies();
+  }, []);
+
+  const fetchCompanies = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/companies?limit=100");
+      const data = await res.json();
+      if (data.companies) {
+        setCompanies(data.companies);
+        setTotalCompanies(data.totalCount || data.companies.length);
+      }
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchFollows = async (uid: string) => {
     setError(null);
@@ -183,10 +194,23 @@ export default function CompaniesPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-3xl font-bold text-white">Track Companies</h1>
-          <p className="mt-2 text-slate-400">
-            Follow companies to get instant alerts when they appear in security incidents.
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white">Track Companies</h1>
+              <p className="mt-2 text-slate-400">
+                {totalCompanies > 0 
+                  ? `${totalCompanies} companies with recent incidents - follow to get alerts`
+                  : "Follow companies to get instant alerts when they appear in security incidents."}
+              </p>
+            </div>
+            <button
+              onClick={fetchCompanies}
+              disabled={isLoading}
+              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+            >
+              <RefreshCw className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
           {!isPro && (
             <div className="mt-3 flex items-center gap-3">
               <FreeLimitBadge current={followedCompanies.size} max={maxFollows} />
@@ -287,6 +311,11 @@ export default function CompaniesPage() {
                       {company.isPublic && (
                         <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded">
                           Public
+                        </span>
+                      )}
+                      {(company as any).incidentCount > 0 && (
+                        <span className="text-xs bg-red-500/20 text-red-300 px-2 py-1 rounded">
+                          {(company as any).incidentCount} incident{(company as any).incidentCount !== 1 ? "s" : ""}
                         </span>
                       )}
                     </div>
