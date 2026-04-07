@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { getSupabaseClient } from "@/lib/supabase/admin";
 import { v4 as uuidv4 } from "uuid";
 import { aggregateIncidents } from "@/lib/sources";
 
@@ -13,65 +13,91 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const refresh = searchParams.get("refresh") === "true";
 
+    const supabase = getSupabaseClient();
+
     if (refresh || !companyId) {
       const incidents = await aggregateIncidents();
       
       for (const incident of incidents.slice(0, 100)) {
-        const existingQuery = await adminDb
-          .collection("incidents")
-          .where("title", "==", incident.title)
+        const { data: existing } = await supabase
+          .from("incidents")
+          .select("id")
+          .eq("title", incident.title)
           .limit(1)
-          .get();
+          .single();
 
-        if (existingQuery.empty) {
-          await adminDb.collection("incidents").add({
-            ...incident,
-            createdAt: new Date().toISOString(),
+        if (!existing) {
+          await supabase.from("incidents").insert({
+            id: uuidv4(),
+            company_id: incident.companyId || null,
+            company_name: incident.companyName,
+            company_domain: incident.companyDomain,
+            title: incident.title,
+            summary: incident.summary,
+            description: incident.description,
+            severity: incident.severity,
+            status: incident.status,
+            sources: incident.sources,
+            exposed_data: incident.exposedData,
+            discovered_at: incident.discoveredAt,
+            breach_date: incident.breachDate || null,
           });
         }
       }
     }
 
-    let incidentsQuery = adminDb
-      .collection("incidents")
-      .orderBy("discoveredAt", "desc")
+    let queryBuilder = supabase
+      .from("incidents")
+      .select("*")
+      .order("discovered_at", { ascending: false })
       .limit(limit);
 
     if (companyId) {
-      incidentsQuery = adminDb
-        .collection("incidents")
-        .where("companyId", "==", companyId)
-        .orderBy("discoveredAt", "desc")
-        .limit(limit);
+      queryBuilder = queryBuilder.eq("company_id", companyId);
     }
 
-    const snapshot = await incidentsQuery.get();
-    
-    let incidents = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
+    const { data: incidents, error } = await queryBuilder;
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch incidents" },
+        { status: 500 }
+      );
+    }
+
+    let formattedIncidents = (incidents || []).map(incident => ({
+      id: incident.id,
+      companyId: incident.company_id,
+      companyName: incident.company_name,
+      companyDomain: incident.company_domain,
+      title: incident.title,
+      summary: incident.summary,
+      description: incident.description,
+      severity: incident.severity,
+      status: incident.status,
+      sources: incident.sources,
+      exposedData: incident.exposed_data,
+      discoveredAt: incident.discovered_at,
+      breachDate: incident.breach_date,
+      updatedAt: incident.updated_at,
     }));
 
     if (severity) {
-      incidents = incidents.filter(i => 
-        (i as { severity?: string }).severity === severity
-      );
+      formattedIncidents = formattedIncidents.filter(i => i.severity === severity);
     }
 
     if (status) {
-      incidents = incidents.filter(i => 
-        (i as { status?: string }).status === status
-      );
+      formattedIncidents = formattedIncidents.filter(i => i.status === status);
     }
 
     if (source) {
-      incidents = incidents.filter(i => {
-        const sources = (i as { sources?: Array<{ type: string }> }).sources || [];
-        return sources.some(s => s.type === source);
-      });
+      formattedIncidents = formattedIncidents.filter(i =>
+        i.sources?.some((s: { type: string }) => s.type === source)
+      );
     }
 
-    return NextResponse.json({ incidents });
+    return NextResponse.json({ incidents: formattedIncidents });
   } catch (error) {
     console.error("Error fetching incidents:", error);
     return NextResponse.json(
@@ -101,24 +127,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseClient();
     const incidentId = uuidv4();
-    const incident = {
-      id: incidentId,
-      companyId: companyId || null,
-      title,
-      summary,
-      description: description || "",
-      severity: severity || "Medium",
-      status: "investigating",
-      sources: sources || [],
-      exposedData: exposedData || [],
-      discoveredAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
 
-    await adminDb.collection("incidents").doc(incidentId).set(incident);
+    const { data, error } = await supabase
+      .from("incidents")
+      .insert({
+        id: incidentId,
+        company_id: companyId || null,
+        company_name: "",
+        company_domain: "",
+        title,
+        summary,
+        description: description || "",
+        severity: severity || "Medium",
+        status: "investigating",
+        sources: sources || [],
+        exposed_data: exposedData || [],
+        discovered_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
 
-    return NextResponse.json({ incident, isNew: true });
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to create incident" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      incident: {
+        id: data.id,
+        ...data,
+      },
+      isNew: true,
+    });
   } catch (error) {
     console.error("Error creating incident:", error);
     return NextResponse.json(

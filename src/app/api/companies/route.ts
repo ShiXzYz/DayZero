@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
-import { v4 as uuidv4 } from "uuid";
+import { getSupabaseClient } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,37 +8,32 @@ export async function GET(request: NextRequest) {
     const industry = searchParams.get("industry");
     const limit = parseInt(searchParams.get("limit") || "20");
 
-    let snapshot;
+    const supabase = getSupabaseClient();
     
+    let queryBuilder = supabase
+      .from("companies")
+      .select("*")
+      .limit(limit);
+
     if (query) {
-      const startAt = query.toLowerCase();
-      const endAt = query.toLowerCase() + "\uf8ff";
-      snapshot = await adminDb
-        .collection("companies")
-        .orderBy("name")
-        .startAt(startAt)
-        .endAt(endAt)
-        .limit(limit)
-        .get();
-    } else {
-      snapshot = await adminDb
-        .collection("companies")
-        .limit(limit)
-        .get();
+      queryBuilder = queryBuilder.ilike("name", `%${query}%`);
     }
-    
-    let companies = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
 
     if (industry) {
-      companies = companies.filter(c => 
-        (c as { industry?: string }).industry?.toLowerCase() === industry.toLowerCase()
+      queryBuilder = queryBuilder.eq("industry", industry);
+    }
+
+    const { data: companies, error } = await queryBuilder;
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch companies" },
+        { status: 500 }
       );
     }
 
-    return NextResponse.json({ companies });
+    return NextResponse.json({ companies: companies || [] });
   } catch (error) {
     console.error("Error fetching companies:", error);
     return NextResponse.json(
@@ -61,33 +55,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingQuery = await adminDb
-      .collection("companies")
-      .where("domain", "==", domain.toLowerCase())
+    const supabase = getSupabaseClient();
+    
+    const { data: existing } = await supabase
+      .from("companies")
+      .select("id, *")
+      .eq("domain", domain.toLowerCase())
       .limit(1)
-      .get();
+      .single();
 
-    if (!existingQuery.empty) {
+    if (existing) {
       return NextResponse.json({
-        company: { id: existingQuery.docs[0].id, ...existingQuery.docs[0].data() },
+        company: existing,
         isNew: false,
       });
     }
 
-    const companyId = uuidv4();
-    const company = {
-      id: companyId,
-      name,
-      domain: domain.toLowerCase(),
-      ticker: ticker || null,
-      industry: industry || "Technology",
-      size: size || "medium",
-      isPublic: isPublic || false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const { data: company, error } = await supabase
+      .from("companies")
+      .insert({
+        name,
+        domain: domain.toLowerCase(),
+        ticker: ticker || null,
+        industry: industry || "Technology",
+        size: size || "medium",
+        is_public: isPublic || false,
+      })
+      .select()
+      .single();
 
-    await adminDb.collection("companies").doc(companyId).set(company);
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to create company" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ company, isNew: true });
   } catch (error) {

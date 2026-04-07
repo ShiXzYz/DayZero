@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { getSupabaseClient } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
-    const unreadOnly = searchParams.get("unreadOnly") === "true";
 
     if (!userId) {
       return NextResponse.json(
@@ -14,23 +13,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let query = adminDb
-      .collection("alerts")
-      .where("userId", "==", userId)
-      .orderBy("createdAt", "desc");
+    const supabase = getSupabaseClient();
+    const { data: alerts, error } = await supabase
+      .from("alerts")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-    if (unreadOnly) {
-      query = query.where("isRead", "==", false);
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch alerts" },
+        { status: 500 }
+      );
     }
 
-    const snapshot = await query.limit(50).get();
-
-    const alerts = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
+    const formattedAlerts = (alerts || []).map(alert => ({
+      id: alert.id,
+      userId: alert.user_id,
+      incidentId: alert.incident_id,
+      type: alert.type,
+      title: alert.title,
+      message: alert.message,
+      severity: alert.severity,
+      isRead: alert.is_read,
+      createdAt: alert.created_at,
     }));
 
-    return NextResponse.json({ alerts });
+    return NextResponse.json({ alerts: formattedAlerts });
   } catch (error) {
     console.error("Error fetching alerts:", error);
     return NextResponse.json(
@@ -42,7 +53,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, type, title, message, severity, relatedBreachId } = await request.json();
+    const { userId, type, title, message, severity, incidentId } = await request.json();
 
     if (!userId || !type || !title || !message) {
       return NextResponse.json(
@@ -51,22 +62,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const alert = {
-      userId,
-      type,
-      title,
-      message,
-      severity: severity || "Medium",
-      relatedBreachId: relatedBreachId || null,
-      isRead: false,
-      createdAt: new Date().toISOString(),
-    };
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from("alerts")
+      .insert({
+        user_id: userId,
+        type,
+        title,
+        message,
+        severity: severity || "Medium",
+        incident_id: incidentId || null,
+        is_read: false,
+      })
+      .select()
+      .single();
 
-    const docRef = await adminDb.collection("alerts").add(alert);
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to create alert" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
-      id: docRef.id,
-      ...alert,
+      id: data.id,
+      userId: data.user_id,
+      type: data.type,
+      title: data.title,
+      message: data.message,
+      severity: data.severity,
+      isRead: data.is_read,
+      createdAt: data.created_at,
     });
   } catch (error) {
     console.error("Error creating alert:", error);
@@ -88,9 +115,19 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    await adminDb.collection("alerts").doc(alertId).update({
-      isRead: isRead !== undefined ? isRead : true,
-    });
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from("alerts")
+      .update({ is_read: isRead !== undefined ? isRead : true })
+      .eq("id", alertId);
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to update alert" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -114,7 +151,19 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await adminDb.collection("alerts").doc(alertId).delete();
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from("alerts")
+      .delete()
+      .eq("id", alertId);
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to delete alert" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
-import { v4 as uuidv4 } from "uuid";
+import { getSupabaseClient } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,17 +13,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const snapshot = await adminDb
-      .collection("follows")
-      .where("userId", "==", userId)
-      .get();
+    const supabase = getSupabaseClient();
+    const { data: follows, error } = await supabase
+      .from("follows")
+      .select("*")
+      .eq("user_id", userId);
 
-    const follows = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch follows" },
+        { status: 500 }
+      );
+    }
+
+    const formattedFollows = (follows || []).map(follow => ({
+      id: follow.id,
+      userId: follow.user_id,
+      companyId: follow.company_id,
+      companyName: follow.company_name,
+      notifyNewIncidents: follow.notify_new_incidents,
+      notifyRiskIncrease: follow.notify_risk_increase,
+      createdAt: follow.created_at,
     }));
 
-    return NextResponse.json({ follows });
+    return NextResponse.json({ follows: formattedFollows });
   } catch (error) {
     console.error("Error fetching follows:", error);
     return NextResponse.json(
@@ -45,34 +58,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingQuery = await adminDb
-      .collection("follows")
-      .where("userId", "==", userId)
-      .where("companyId", "==", companyId)
-      .limit(1)
-      .get();
+    const supabase = getSupabaseClient();
 
-    if (!existingQuery.empty) {
+    const { data: existing } = await supabase
+      .from("follows")
+      .select("id, *")
+      .eq("user_id", userId)
+      .eq("company_id", companyId)
+      .limit(1)
+      .single();
+
+    if (existing) {
       return NextResponse.json({
-        follow: { id: existingQuery.docs[0].id, ...existingQuery.docs[0].data() },
+        follow: {
+          id: existing.id,
+          userId: existing.user_id,
+          companyId: existing.company_id,
+          companyName: existing.company_name,
+        },
         isNew: false,
       });
     }
 
-    const followId = uuidv4();
-    const follow = {
-      id: followId,
-      userId,
-      companyId,
-      companyName: companyName || "",
-      createdAt: new Date().toISOString(),
-      notifyNewIncidents: notifyNewIncidents !== false,
-      notifyRiskIncrease: notifyRiskIncrease !== false,
-    };
+    const { data: follow, error } = await supabase
+      .from("follows")
+      .insert({
+        user_id: userId,
+        company_id: companyId,
+        company_name: companyName || "",
+        notify_new_incidents: notifyNewIncidents !== false,
+        notify_risk_increase: notifyRiskIncrease !== false,
+      })
+      .select()
+      .single();
 
-    await adminDb.collection("follows").doc(followId).set(follow);
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to follow company" },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({ follow, isNew: true });
+    return NextResponse.json({
+      follow: {
+        id: follow.id,
+        userId: follow.user_id,
+        companyId: follow.company_id,
+        companyName: follow.company_name,
+      },
+      isNew: true,
+    });
   } catch (error) {
     console.error("Error creating follow:", error);
     return NextResponse.json(
@@ -96,17 +132,34 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (followId) {
-      await adminDb.collection("follows").doc(followId).delete();
-    } else if (userId && companyId) {
-      const snapshot = await adminDb
-        .collection("follows")
-        .where("userId", "==", userId)
-        .where("companyId", "==", companyId)
-        .get();
+    const supabase = getSupabaseClient();
 
-      for (const doc of snapshot.docs) {
-        await doc.ref.delete();
+    if (followId) {
+      const { error } = await supabase
+        .from("follows")
+        .delete()
+        .eq("id", followId);
+
+      if (error) {
+        console.error("Supabase error:", error);
+        return NextResponse.json(
+          { error: "Failed to unfollow company" },
+          { status: 500 }
+        );
+      }
+    } else if (userId && companyId) {
+      const { error } = await supabase
+        .from("follows")
+        .delete()
+        .eq("user_id", userId)
+        .eq("company_id", companyId);
+
+      if (error) {
+        console.error("Supabase error:", error);
+        return NextResponse.json(
+          { error: "Failed to unfollow company" },
+          { status: 500 }
+        );
       }
     }
 
