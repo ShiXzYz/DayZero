@@ -192,13 +192,18 @@ export default function FeedPage() {
                 <Link href="/companies" className="px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">Companies</Link>
                 <Link href="/alerts" className="px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">Alerts</Link>
                 <Link href="/check-exposure" className="px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">Check Exposure</Link>
-                {user?.subscriptionTier !== "free" && (
-                  <Link href="/settings/subscription" className="px-4 py-3 text-amber-400 hover:bg-slate-800 transition-colors">
-                    <Crown className="inline h-4 w-4 mr-2" />
-                    Pro
+                {user?.subscriptionTier !== "free" ? (
+                  <Link href="/settings/subscription" className="px-4 py-3 text-amber-400 hover:bg-slate-800 transition-colors flex items-center gap-2">
+                    <Crown className="h-4 w-4" />
+                    Pro Plan
                   </Link>
-                )}
-                {isAuthenticated && (
+                ) : isAuthenticated ? (
+                  <Link href="/settings/subscription" className="px-4 py-3 text-blue-400 hover:bg-slate-800 transition-colors flex items-center gap-2">
+                    <Crown className="h-4 w-4" />
+                    Upgrade to Pro
+                  </Link>
+                ) : null}
+                {isAuthenticated ? (
                   <button
                     onClick={() => { signOut(); setShowUserMenu(false); }}
                     className="px-4 py-3 text-left text-slate-300 hover:bg-slate-800 hover:text-white transition-colors flex items-center gap-2"
@@ -206,6 +211,10 @@ export default function FeedPage() {
                     <LogOut className="h-4 w-4" />
                     Sign out
                   </button>
+                ) : (
+                  <Link href="/auth/login" className="px-4 py-3 text-blue-400 hover:bg-slate-800 transition-colors">
+                    Sign In
+                  </Link>
                 )}
               </div>
             </div>
@@ -511,18 +520,26 @@ export default function FeedPage() {
                     </div>
 
                     {user?.subscriptionTier !== "free" && (
-                      <div className="mt-3 pt-3 border-t border-slate-800 flex gap-2">
+                      <div className="mt-3 pt-3 border-t border-slate-800">
+                        <div className="flex gap-2 mb-2">
+                          <Link
+                            href={`/protect/${encodeURIComponent(incident.companyName)}?exposed=${encodeURIComponent(incident.exposedData.map(e => e.types.join(",")).join(";"))}`}
+                            className="flex-1 text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 border border-red-500/30 rounded-lg px-3 py-2 text-center font-medium transition-colors"
+                          >
+                            Protect My Account
+                          </Link>
+                          <Link
+                            href={`/companies?follow=${encodeURIComponent(incident.companyName)}`}
+                            className="flex-1 text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-500/30 rounded-lg px-3 py-2 text-center font-medium transition-colors"
+                          >
+                            Get Alerts
+                          </Link>
+                        </div>
                         <Link
                           href={`/company/${encodeURIComponent(incident.companyName)}`}
-                          className="flex-1 text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 rounded-lg px-3 py-2 text-center font-medium transition-colors"
+                          className="block text-center text-xs text-slate-500 hover:text-slate-400 transition-colors py-1"
                         >
-                          View Company
-                        </Link>
-                        <Link
-                          href={`/companies?follow=${encodeURIComponent(incident.companyName)}`}
-                          className="flex-1 text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-500/30 rounded-lg px-3 py-2 text-center font-medium transition-colors"
-                        >
-                          Get alerts
+                          View Company Details
                         </Link>
                       </div>
                     )}
