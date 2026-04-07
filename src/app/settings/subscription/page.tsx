@@ -11,23 +11,24 @@ import { SubscriptionTier } from "@/types";
 export default function SubscriptionPage() {
   const router = useRouter();
   const { user, updateSubscription } = useAuth();
-  const [isLoading, setIsLoading] = useState<SubscriptionTier | null>(null);
-  const [showSuccess, setShowSuccess] = useState<SubscriptionTier | null>(null);
+  const [isLoading, setIsLoading] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState<string | null>(null);
 
   const currentTier = user?.subscriptionTier || "free";
   const currentPlan = getPlan(currentTier);
 
-  const handleUpgrade = async (tier: SubscriptionTier) => {
-    if (tier === currentTier) return;
+  const handleUpgrade = async (priceId: string) => {
+    const plan = SUBSCRIPTION_PLANS.find(p => p.priceId === priceId);
+    if (!plan || plan.tier === currentTier) return;
     
-    setIsLoading(tier);
+    setIsLoading(priceId);
     
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    await updateSubscription(tier);
+    await updateSubscription(plan.tier);
     
     setIsLoading(null);
-    setShowSuccess(tier);
+    setShowSuccess(priceId);
     
     setTimeout(() => {
       setShowSuccess(null);
@@ -35,8 +36,8 @@ export default function SubscriptionPage() {
     }, 2000);
   };
 
-  const isCurrentlyLoading = (tier: SubscriptionTier) => isLoading === tier;
-  const isCurrentlySuccess = (tier: SubscriptionTier) => showSuccess === tier;
+  const isCurrentlyLoading = (priceId: string) => isLoading === priceId;
+  const isCurrentlySuccess = (priceId: string) => showSuccess === priceId;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -58,35 +59,35 @@ export default function SubscriptionPage() {
           <h1 className="text-3xl font-bold text-white mb-4">Choose Your Plan</h1>
           <p className="text-slate-400 max-w-xl mx-auto">
             Get enhanced protection with real-time alerts, unlimited monitoring, and one-tap incident response.
-            Pro is just $50.89/year — less than $5/month!
           </p>
           {user?.subscriptionTier !== "free" && (
             <div className="mt-4 inline-flex items-center gap-2 bg-amber-500/20 border border-amber-500/30 rounded-full px-4 py-1.5">
               <Crown className="h-4 w-4 text-amber-400" />
               <span className="text-sm text-amber-300">
-                You&apos;re on the {currentPlan.name} plan
+                You&apos;re on the Pro plan
               </span>
             </div>
           )}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {SUBSCRIPTION_PLANS.map((plan) => {
             const isCurrent = plan.tier === currentTier;
-            const planIsLoading = isCurrentlyLoading(plan.tier);
-            const planIsSuccess = isCurrentlySuccess(plan.tier);
-            const isPopular = plan.tier === "pro";
+            const planIsLoading = isCurrentlyLoading(plan.priceId);
+            const planIsSuccess = isCurrentlySuccess(plan.priceId);
+            const isAnnual = plan.billingPeriod === "annual";
+            const isBestValue = isAnnual;
 
             return (
               <div
-                key={plan.tier}
+                key={plan.priceId}
                 className={`relative rounded-2xl p-6 ${
                   isCurrent
                     ? "bg-blue-900/20 border-2 border-blue-500"
                     : "bg-slate-900 border border-slate-700"
-                } ${isPopular && !isCurrent ? "ring-2 ring-blue-500/50" : ""}`}
+                } ${isBestValue && !isCurrent ? "ring-2 ring-blue-500/50" : ""}`}
               >
-                {isPopular && !isCurrent && (
+                {isBestValue && !isCurrent && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <span className="bg-blue-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
                       Best Value
@@ -111,14 +112,16 @@ export default function SubscriptionPage() {
                   </div>
                   <div className="flex items-baseline gap-1">
                     <span className="text-3xl font-bold text-white">
-                      {formatPrice(plan.price)}
+                      {formatPrice(plan)}
                     </span>
                     {plan.price > 0 && (
-                      <span className="text-slate-400 text-sm">billed annually</span>
+                      <span className="text-slate-400 text-sm">
+                        {plan.billingPeriod === "annual" ? "billed annually" : "billed monthly"}
+                      </span>
                     )}
                   </div>
-                  {plan.tier === "pro" && (
-                    <p className="text-xs text-blue-400 mt-1">That's just $4.24/month!</p>
+                  {isAnnual && (
+                    <p className="text-xs text-blue-400 mt-1">Save 15% vs monthly!</p>
                   )}
                 </div>
 
@@ -132,7 +135,7 @@ export default function SubscriptionPage() {
                 </ul>
 
                 <button
-                  onClick={() => handleUpgrade(plan.tier)}
+                  onClick={() => handleUpgrade(plan.priceId)}
                   disabled={isCurrent || isLoading !== null}
                   className={`w-full py-2.5 rounded-lg font-medium transition-all ${
                     isCurrent
@@ -159,7 +162,7 @@ export default function SubscriptionPage() {
                   ) : isCurrent ? (
                     "Current Plan"
                   ) : plan.tier === "free" ? (
-                    "Downgrade"
+                    "Current Tier"
                   ) : (
                     `Upgrade to ${plan.name}`
                   )}

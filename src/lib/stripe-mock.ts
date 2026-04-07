@@ -1,11 +1,13 @@
 import { SubscriptionTier } from "@/types";
 
+export type BillingPeriod = "monthly" | "annual";
+
 export interface SubscriptionPlan {
   tier: SubscriptionTier;
   name: string;
   price: number;
   priceId: string;
-  annualPrice?: number;
+  billingPeriod: BillingPeriod;
   features: string[];
   limits: {
     companyFollows: number;
@@ -22,6 +24,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     name: "Free",
     price: 0,
     priceId: "price_free",
+    billingPeriod: "monthly",
     features: [
       "Real-time breach alerts",
       "SEC 8-K filing monitoring",
@@ -38,10 +41,10 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   },
   {
     tier: "pro",
-    name: "Pro",
-    price: 50.89,
-    priceId: "price_pro_annual",
-    annualPrice: 50.89,
+    name: "Pro Monthly",
+    price: 4.99,
+    priceId: "price_pro_monthly",
+    billingPeriod: "monthly",
     features: [
       "Everything in Free",
       "Unlimited company follows",
@@ -50,6 +53,30 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       "One-tap incident response actions",
       "Risk scoring & analysis",
       "Daily digest emails",
+    ],
+    limits: {
+      companyFollows: 999,
+      hibpChecksPerMonth: 999,
+      realTimeAlerts: true,
+      oneTapActions: true,
+      riskScoring: true,
+    },
+  },
+  {
+    tier: "pro",
+    name: "Pro Annual",
+    price: 50.89,
+    priceId: "price_pro_annual",
+    billingPeriod: "annual",
+    features: [
+      "Everything in Free",
+      "Unlimited company follows",
+      "Unlimited HIBP exposure checks",
+      "Real-time push notifications",
+      "One-tap incident response actions",
+      "Risk scoring & analysis",
+      "Daily digest emails",
+      "Save 15% vs monthly",
     ],
     limits: {
       companyFollows: 999,
@@ -104,7 +131,8 @@ export async function createMockCustomerPortal(): Promise<string> {
   return "#mock-portal";
 }
 
-export function formatPrice(price: number): string {
-  if (price === 0) return "Free";
-  return `$${price.toFixed(2)}/year`;
+export function formatPrice(plan: SubscriptionPlan): string {
+  if (plan.price === 0) return "Free";
+  if (plan.billingPeriod === "annual") return `$${plan.price.toFixed(2)}/year`;
+  return `$${plan.price.toFixed(2)}/mo`;
 }
