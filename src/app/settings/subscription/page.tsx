@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Shield, Check, ArrowLeft, Crown, Zap, Building, CreditCard, Sparkles } from "lucide-react";
+import { Shield, Check, ArrowLeft, Crown, Zap, CreditCard, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { SUBSCRIPTION_PLANS, formatPrice, getPlan } from "@/lib/stripe-mock";
 import { SubscriptionTier } from "@/types";
@@ -58,6 +58,7 @@ export default function SubscriptionPage() {
           <h1 className="text-3xl font-bold text-white mb-4">Choose Your Plan</h1>
           <p className="text-slate-400 max-w-xl mx-auto">
             Get enhanced protection with real-time alerts, unlimited monitoring, and one-tap incident response.
+            Pro is just $50.89/year — less than $5/month!
           </p>
           {user?.subscriptionTier !== "free" && (
             <div className="mt-4 inline-flex items-center gap-2 bg-amber-500/20 border border-amber-500/30 rounded-full px-4 py-1.5">
@@ -69,7 +70,7 @@ export default function SubscriptionPage() {
           )}
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
           {SUBSCRIPTION_PLANS.map((plan) => {
             const isCurrent = plan.tier === currentTier;
             const planIsLoading = isCurrentlyLoading(plan.tier);
@@ -88,7 +89,7 @@ export default function SubscriptionPage() {
                 {isPopular && !isCurrent && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <span className="bg-blue-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
-                      Most Popular
+                      Best Value
                     </span>
                   </div>
                 )}
@@ -106,7 +107,6 @@ export default function SubscriptionPage() {
                   <div className="flex items-center gap-2 mb-2">
                     {plan.tier === "free" && <Shield className="h-5 w-5 text-slate-400" />}
                     {plan.tier === "pro" && <Zap className="h-5 w-5 text-blue-400" />}
-                    {plan.tier === "enterprise" && <Building className="h-5 w-5 text-purple-400" />}
                     <h3 className="text-lg font-semibold text-white">{plan.name}</h3>
                   </div>
                   <div className="flex items-baseline gap-1">
@@ -114,9 +114,12 @@ export default function SubscriptionPage() {
                       {formatPrice(plan.price)}
                     </span>
                     {plan.price > 0 && (
-                      <span className="text-slate-400 text-sm">billed monthly</span>
+                      <span className="text-slate-400 text-sm">billed annually</span>
                     )}
                   </div>
+                  {plan.tier === "pro" && (
+                    <p className="text-xs text-blue-400 mt-1">That's just $4.24/month!</p>
+                  )}
                 </div>
 
                 <ul className="space-y-3 mb-6">

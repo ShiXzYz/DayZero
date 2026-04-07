@@ -5,6 +5,7 @@ export interface SubscriptionPlan {
   name: string;
   price: number;
   priceId: string;
+  annualPrice?: number;
   features: string[];
   limits: {
     companyFollows: number;
@@ -12,9 +13,6 @@ export interface SubscriptionPlan {
     realTimeAlerts: boolean;
     oneTapActions: boolean;
     riskScoring: boolean;
-    apiAccess: boolean;
-    bulkExports: boolean;
-    prioritySupport: boolean;
   };
 }
 
@@ -36,16 +34,14 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       realTimeAlerts: false,
       oneTapActions: false,
       riskScoring: false,
-      apiAccess: false,
-      bulkExports: false,
-      prioritySupport: false,
     },
   },
   {
     tier: "pro",
     name: "Pro",
-    price: 4.99,
-    priceId: "price_pro",
+    price: 50.89,
+    priceId: "price_pro_annual",
+    annualPrice: 50.89,
     features: [
       "Everything in Free",
       "Unlimited company follows",
@@ -61,34 +57,6 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       realTimeAlerts: true,
       oneTapActions: true,
       riskScoring: true,
-      apiAccess: false,
-      bulkExports: false,
-      prioritySupport: false,
-    },
-  },
-  {
-    tier: "enterprise",
-    name: "Enterprise",
-    price: 29.99,
-    priceId: "price_enterprise",
-    features: [
-      "Everything in Pro",
-      "API access (1000 requests/day)",
-      "Bulk data exports",
-      "Custom alert integrations",
-      "Priority support",
-      "Dedicated account manager",
-      "Custom integrations",
-    ],
-    limits: {
-      companyFollows: 999,
-      hibpChecksPerMonth: 999,
-      realTimeAlerts: true,
-      oneTapActions: true,
-      riskScoring: true,
-      apiAccess: true,
-      bulkExports: true,
-      prioritySupport: true,
     },
   },
 ];
@@ -138,5 +106,5 @@ export async function createMockCustomerPortal(): Promise<string> {
 
 export function formatPrice(price: number): string {
   if (price === 0) return "Free";
-  return `$${price.toFixed(2)}/mo`;
+  return `$${price.toFixed(2)}/year`;
 }

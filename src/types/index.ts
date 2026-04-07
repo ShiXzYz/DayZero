@@ -1,7 +1,7 @@
 export type Severity = "Critical" | "High" | "Medium" | "Low";
 export type SourceType = "sec_filing" | "dark_web" | "hibp" | "news" | "manual";
 export type IncidentStatus = "active" | "investigating" | "resolved" | "false_positive";
-export type SubscriptionTier = "free" | "pro" | "enterprise";
+export type SubscriptionTier = "free" | "pro";
 
 export interface Company {
   id: string;

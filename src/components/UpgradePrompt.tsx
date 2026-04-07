@@ -67,7 +67,6 @@ export function UpgradePrompt({ feature, limit, currentUsage, onDismiss }: Upgra
 }
 
 interface FeatureBadgeProps {
-  tier: "pro" | "enterprise";
   children: React.ReactNode;
 }
 

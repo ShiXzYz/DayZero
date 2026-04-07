@@ -241,7 +241,7 @@ export default function FeedPage() {
                       onClick={() => setShowUserMenu(false)}
                     >
                       <Crown className="inline h-3.5 w-3.5 mr-2 text-amber-400" />
-                      {user?.subscriptionTier === "pro" ? "Pro Plan" : user?.subscriptionTier === "enterprise" ? "Enterprise Plan" : "Upgrade to Pro"}
+                      {user?.subscriptionTier === "pro" ? "Pro Plan" : "Upgrade to Pro"}
                     </Link>
                     <button
                       onClick={() => { signOut(); setShowUserMenu(false); }}
