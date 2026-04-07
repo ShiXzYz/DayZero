@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, Shield, Key, Mail, CreditCard, User, Lock, Smartphone, AlertTriangle } from "lucide-react";
+import { ChevronLeft, Shield, Key, Lock, AlertTriangle, Search, ExternalLink, CheckCircle } from "lucide-react";
 
 interface ProtectPageProps {
   params: Promise<{
@@ -10,93 +10,116 @@ interface ProtectPageProps {
   }>;
 }
 
-const SECURITY_ACTIONS = [
-  {
-    type: "password",
-    icon: Key,
-    title: "Change Password",
-    description: "Update your password to a strong, unique one",
-    externalUrl: "https://passwords.google.com",
-    label: "Change Password"
-  },
-  {
-    type: "email",
-    icon: Mail,
-    title: "Review Email Settings",
-    description: "Check your email forwarding rules and filters",
-    externalUrl: "https://myaccount.google.com/email",
-    label: "Secure Email"
-  },
-  {
-    type: "phone",
-    icon: Smartphone,
-    title: "Update Phone Number",
-    description: "Ensure your recovery phone is current",
-    externalUrl: "https://myaccount.google.com/phone",
-    label: "Update Phone"
-  },
-  {
-    type: "2fa",
-    icon: Lock,
-    title: "Enable Two-Factor Auth",
-    description: "Add an extra layer of security to your account",
-    externalUrl: "https://myaccount.google.com/signinoptions/two-step-verification",
-    label: "Enable 2FA"
-  },
-  {
-    type: "payment",
-    icon: CreditCard,
-    title: "Review Payment Methods",
-    description: "Check and remove any unauthorized payment methods",
-    externalUrl: "https://pay.google.com",
-    label: "Secure Payments"
-  },
-  {
-    type: "ssn",
-    icon: AlertTriangle,
-    title: "Monitor Credit",
-    description: "Place a fraud alert or credit freeze",
-    externalUrl: "https://www.annualcreditreport.com",
-    label: "Check Credit"
-  },
-  {
-    type: "personal",
-    icon: User,
-    title: "Review Personal Info",
-    description: "Check and update your personal details",
-    externalUrl: "https://myaccount.google.com/personal-info",
-    label: "Review Info"
-  },
-];
+const COMPANY_SECURITY_URLS: Record<string, { password: string; account: string; name: string }> = {
+  "amazon": { name: "Amazon", password: "https://www.amazon.com/ap/settings/approval", account: "https://www.amazon.com/a/settings" },
+  "google": { name: "Google", password: "https://myaccount.google.com/password", account: "https://myaccount.google.com" },
+  "facebook": { name: "Facebook", password: "https://www.facebook.com/settings?tab=security", account: "https://www.facebook.com/settings" },
+  "meta": { name: "Meta", password: "https://www.facebook.com/settings?tab=security", account: "https://www.facebook.com/settings" },
+  "apple": { name: "Apple", password: "https://appleid.apple.com", account: "https://account.apple.com" },
+  "microsoft": { name: "Microsoft", password: "https://account.microsoft.com/security", account: "https://account.microsoft.com" },
+  "netflix": { name: "Netflix", password: "https://www.netflix.com/password", account: "https://www.netflix.com/manageaccount" },
+  "twitter": { name: "Twitter/X", password: "https://twitter.com/settings/password", account: "https://twitter.com/settings" },
+  "x corp": { name: "X (Twitter)", password: "https://twitter.com/settings/password", account: "https://twitter.com/settings" },
+  "linkedin": { name: "LinkedIn", password: "https://www.linkedin.com/psettings/change-password", account: "https://www.linkedin.com/psettings" },
+  "spotify": { name: "Spotify", password: "https://www.spotify.com/account/overview/", account: "https://www.spotify.com/account/overview/" },
+  "uber": { name: "Uber", password: "https://auth.uber.com/v1/passwords", account: "https://myaccount.uber.com" },
+  "lyft": { name: "Lyft", password: "https://account.lyft.com/auth/password", account: "https://account.lyft.com" },
+  "paypal": { name: "PayPal", password: "https://www.paypal.com/myaccount/settings/security", account: "https://www.paypal.com/myaccount" },
+  "chase": { name: "Chase", password: "https://www.chase.com", account: "https://www.chase.com" },
+  "walmart": { name: "Walmart", password: "https://www.walmart.com/account", account: "https://www.walmart.com/account" },
+  "target": { name: "Target", password: "https://www.target.com/guest/manage-account", account: "https://www.target.com" },
+  "adobe": { name: "Adobe", password: "https://account.adobe.com/security", account: "https://account.adobe.com" },
+  "dropbox": { name: "Dropbox", password: "https://www.dropbox.com/account_security", account: "https://www.dropbox.com/account" },
+  "yahoo": { name: "Yahoo", password: "https://login.yahoo.com/account/security", account: "https://login.yahoo.com" },
+  "tiktok": { name: "TikTok", password: "https://www.tiktok.com/setting", account: "https://www.tiktok.com/setting" },
+  "snapchat": { name: "Snapchat", password: "https://accounts.snapchat.com/accounts/password", account: "https://accounts.snapchat.com" },
+};
 
 const EXPOSED_TYPE_MAP: Record<string, string[]> = {
-  password: ["Password", "Passwords", "login", "credential", "login credentials"],
-  email: ["Email", "Email Address", "email addresses", "contact info"],
-  phone: ["Phone", "Phone Number", "mobile number", "phone number"],
-  payment: ["Payment", "Credit Card", "Bank", "Financial", "card details", "banking info", "payment info"],
-  ssn: ["SSN", "Social Security", "National ID", "government ID"],
-  personal: ["Name", "Address", "Date of Birth", "DOB", "physical address", "personal info"],
-  "2fa": ["2FA", "Two-Factor", "Authentication", "MFA"],
+  password: ["password", "passphrase", "login", "credential", "credentials", "pwd"],
+  email: ["email", "email address", "contact info"],
+  phone: ["phone", "phone number", "mobile number", "telephone", "sms"],
+  payment: ["payment", "credit card", "bank", "financial", "card", "billing", "debit"],
+  ssn: ["ssn", "social security", "national id", "government id", "tax id", "passport"],
+  personal: ["name", "address", "date of birth", "dob", "physical address", "personal info", "driver license"],
 };
 
 export default async function ProtectPage({ params, searchParams }: ProtectPageProps) {
   const { name } = await params;
   const { exposed } = await searchParams;
   const companyName = decodeURIComponent(name);
+  const companyLower = companyName.toLowerCase();
   
-  const exposedTypes = exposed ? exposed.split(";").flatMap(s => s.split(",")).map(s => s.trim().toLowerCase()) : [];
+  const exposedTypes = exposed 
+    ? exposed.split(/[;,]/).map(s => s.trim().toLowerCase())
+    : [];
   
-  const suggestedActions = SECURITY_ACTIONS.filter(action => {
-    if (exposedTypes.length === 0) return true;
-    const keywords = EXPOSED_TYPE_MAP[action.type] || [];
-    return exposedTypes.some(exposed => 
-      keywords.some(keyword => exposed.includes(keyword.toLowerCase()))
-    );
+  const matchedCompany = Object.keys(COMPANY_SECURITY_URLS).find(k => companyLower.includes(k));
+  const companyInfo = matchedCompany ? COMPANY_SECURITY_URLS[matchedCompany] : null;
+
+  const suggestedTypes = new Set<string>();
+  exposedTypes.forEach(exposed => {
+    Object.entries(EXPOSED_TYPE_MAP).forEach(([type, keywords]) => {
+      if (keywords.some(kw => exposed.includes(kw))) {
+        suggestedTypes.add(type);
+      }
+    });
   });
 
-  const generalActions = SECURITY_ACTIONS.filter(action => 
-    !suggestedActions.includes(action)
-  );
+  const passwordAction = {
+    icon: Key,
+    title: "Change Your Password",
+    description: "Create a strong, unique password for your account",
+    url: companyInfo?.password || `https://www.google.com/search?q=${encodeURIComponent(companyName)} official website`,
+    priority: suggestedTypes.has("password") ? "high" : "normal"
+  };
+
+  const twoFactorAction = {
+    icon: Lock,
+    title: "Enable Two-Factor Authentication",
+    description: "Add an extra layer of security to prevent unauthorized access",
+    url: companyInfo ? `${companyInfo.account}` : `https://www.google.com/search?q=${encodeURIComponent(companyName)} two-factor authentication`,
+    priority: "normal"
+  };
+
+  const reviewAction = {
+    icon: Search,
+    title: "Review Recent Activity",
+    description: "Check your account for any unauthorized access or changes",
+    url: companyInfo?.account || `https://www.google.com/search?q=${encodeURIComponent(companyName)} account settings`,
+    priority: "normal"
+  };
+
+  const creditAction = {
+    icon: AlertTriangle,
+    title: "Monitor Your Credit",
+    description: "Place a fraud alert or credit freeze if personal information was exposed",
+    url: "https://www.annualcreditreport.com",
+    priority: suggestedTypes.has("ssn") || suggestedTypes.has("personal") ? "high" : "low"
+  };
+
+  const passwordManagerAction = {
+    icon: Key,
+    title: "Use a Password Manager",
+    description: "Generate and store unique passwords for all your accounts",
+    url: "https://passwords.google.com",
+    priority: "low"
+  };
+
+  let actions = [passwordAction, twoFactorAction, reviewAction];
+  
+  if (suggestedTypes.has("ssn") || suggestedTypes.has("personal")) {
+    actions.push(creditAction);
+  }
+  
+  if (suggestedTypes.size === 0) {
+    actions.push(passwordManagerAction);
+  }
+
+  actions.sort((a, b) => {
+    const priorityOrder: Record<string, number> = { high: 0, normal: 1, low: 2 };
+    return priorityOrder[a.priority] - priorityOrder[b.priority];
+  });
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -105,7 +128,7 @@ export default async function ProtectPage({ params, searchParams }: ProtectPageP
           <Link href="/" className="text-slate-400 hover:text-white transition-colors flex items-center gap-2">
             <ChevronLeft className="h-4 w-4" /> Back
           </Link>
-          <span className="text-xs text-slate-500">Protect your accounts</span>
+          <span className="text-xs text-slate-500">{companyName} - Protect Your Account</span>
         </div>
       </div>
 
@@ -114,7 +137,7 @@ export default async function ProtectPage({ params, searchParams }: ProtectPageP
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-red-500/20 mb-4">
             <Shield className="h-8 w-8 text-red-400" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Protect Your Account</h1>
+          <h1 className="text-2xl font-bold text-white">Protect Your {companyName} Account</h1>
           <p className="mt-2 text-slate-400">
             {companyName} reported a data breach. Take these steps to secure your account.
           </p>
@@ -125,7 +148,7 @@ export default async function ProtectPage({ params, searchParams }: ProtectPageP
             <p className="text-sm text-red-300 font-medium mb-2">Data potentially exposed:</p>
             <div className="flex flex-wrap gap-2">
               {exposedTypes.map((type, i) => (
-                <span key={i} className="text-xs bg-red-500/20 text-red-200 px-2 py-1 rounded">
+                <span key={i} className="text-xs bg-red-500/20 text-red-200 px-2 py-1 rounded capitalize">
                   {type}
                 </span>
               ))}
@@ -135,25 +158,29 @@ export default async function ProtectPage({ params, searchParams }: ProtectPageP
 
         <div className="space-y-4 mb-8">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-400" />
+            <CheckCircle className="h-5 w-5 text-green-400" />
             Recommended Actions
           </h2>
-          {suggestedActions.map((action) => (
+          {actions.map((action, index) => (
             <a
-              key={action.type}
-              href={action.externalUrl}
+              key={index}
+              href={action.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block bg-slate-900 border border-slate-700 rounded-xl p-4 hover:border-slate-600 transition-all group"
+              className={`block bg-slate-900 border rounded-xl p-4 hover:border-slate-600 transition-all group ${
+                action.priority === "high" ? "border-red-500/30" : "border-slate-700"
+              }`}
             >
               <div className="flex items-start gap-4">
-                <div className="h-10 w-10 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0">
-                  <action.icon className="h-5 w-5 text-red-400" />
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
+                  action.priority === "high" ? "bg-red-500/20" : "bg-blue-500/20"
+                }`}>
+                  <action.icon className={`h-5 w-5 ${action.priority === "high" ? "text-red-400" : "text-blue-400"}`} />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-white group-hover:text-red-300 transition-colors">{action.title}</h3>
-                    <span className="text-xs text-slate-500">Open →</span>
+                    <h3 className="font-semibold text-white group-hover:text-blue-300 transition-colors">{action.title}</h3>
+                    <span className="text-xs text-slate-500 flex items-center gap-1">Open <ExternalLink className="h-3 w-3" /></span>
                   </div>
                   <p className="text-sm text-slate-400 mt-1">{action.description}</p>
                 </div>
@@ -162,32 +189,9 @@ export default async function ProtectPage({ params, searchParams }: ProtectPageP
           ))}
         </div>
 
-        {generalActions.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-white">Additional Security Steps</h2>
-            {generalActions.slice(0, 3).map((action) => (
-              <a
-                key={action.type}
-                href={action.externalUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block bg-slate-900/50 border border-slate-800 rounded-xl p-4 hover:border-slate-700 transition-all group"
-              >
-                <div className="flex items-center gap-3">
-                  <action.icon className="h-5 w-5 text-slate-500" />
-                  <div className="flex-1">
-                    <h3 className="font-medium text-slate-300 group-hover:text-white transition-colors">{action.title}</h3>
-                  </div>
-                  <span className="text-xs text-slate-500">→</span>
-                </div>
-              </a>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-8 p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
+        <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
           <p className="text-sm text-slate-400 text-center">
-            These links go to official account security pages. Always verify you&apos;re on the correct website before entering any information.
+            These links go to official account pages. Always verify you&apos;re on the correct website before entering any information.
           </p>
         </div>
       </div>
