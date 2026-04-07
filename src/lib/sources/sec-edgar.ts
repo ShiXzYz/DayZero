@@ -104,7 +104,7 @@ export function parse8KFilings(filings: EDGARSubmissions, daysBack: number = 7):
         ticker: filings.ticker,
         formType: filings.filings.recent.form[item.index],
         filedDate: filings.filings.recent.filingDate[item.index],
-        documentUrl: `https://www.sec.gov/Archives/edgar/full-index/${accessionClean}/${primaryDoc}`,
+        documentUrl: `https://www.sec.gov/Archives/edgar/data/${parseInt(filings.cik, 10)}/${accessionClean}/${primaryDoc}`,
         items: [],
         content: "",
       };

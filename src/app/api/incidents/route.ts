@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get("companyId");
+    const companyName = searchParams.get("companyName");
     const severity = searchParams.get("severity");
     const status = searchParams.get("status");
     const source = searchParams.get("source");
@@ -79,6 +80,10 @@ export async function GET(request: NextRequest) {
 
       if (companyId) {
         queryBuilder = queryBuilder.eq("company_id", companyId);
+      }
+
+      if (!companyId && companyName) {
+        queryBuilder = queryBuilder.ilike("company_name", `%${companyName}%`);
       }
 
       const { data: incidents, error: queryError } = await queryBuilder;

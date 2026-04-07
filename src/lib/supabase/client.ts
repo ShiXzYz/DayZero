@@ -7,29 +7,26 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const isConfigured = !!(supabaseUrl && supabaseAnonKey);
 
-export function getSupabaseClient(): SupabaseClient | null {
-  if (!isConfigured) return null;
-  
-  if (supabaseInstance) return supabaseInstance;
-
-  supabaseInstance = createClient(supabaseUrl!, supabaseAnonKey!, {
+function createSupabaseClient(): SupabaseClient {
+  return createClient(supabaseUrl!, supabaseAnonKey!, {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
     },
   });
+}
+
+export function getSupabaseClient(): SupabaseClient | null {
+  if (!isConfigured) return null;
+
+  if (!supabaseInstance) {
+    supabaseInstance = createSupabaseClient();
+  }
 
   return supabaseInstance;
 }
 
-export const supabase = isConfigured 
-  ? createClient(supabaseUrl!, supabaseAnonKey!, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-      },
-    })
-  : ({} as SupabaseClient);
+export const supabase = getSupabaseClient() ?? ({} as SupabaseClient);
 
 export function isSupabaseConfigured(): boolean {
   return isConfigured;
