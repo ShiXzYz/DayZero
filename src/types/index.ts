@@ -134,4 +134,5 @@ export interface NewsArticle {
   summary: string;
   relatedCompanies: string[];
   tags: string[];
+  exposedTypes?: string[];
 }

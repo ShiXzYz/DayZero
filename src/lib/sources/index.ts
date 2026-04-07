@@ -1,6 +1,9 @@
 import { Incident } from "@/types";
 import { fetchRecent8KFilings, isCybersecurityFiling } from "./sec-edgar";
 import { fetchAllNewsFeeds } from "./news";
+import { getCachedIncidents, setCachedIncidents } from "@/lib/cache/incidents";
+import { getSupabaseClient } from "@/lib/supabase/admin";
+import { v4 as uuidv4 } from "uuid";
 
 export interface SourceConfig {
   secEdgar: boolean;
@@ -144,6 +147,15 @@ export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Pr
     news = true,
   } = config;
 
+  const cached = getCachedIncidents();
+  if (cached && cached.length > 0) {
+    return {
+      incidents: cached,
+      isMockData: false,
+      sourceErrors: [],
+    };
+  }
+
   const incidents: Incident[] = [];
   const sourceErrors: string[] = [];
 
@@ -161,6 +173,41 @@ export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Pr
     }
   }
 
+  const supabase = getSupabaseClient();
+  
+  if (supabase && incidents.length > 0) {
+    try {
+      for (const incident of incidents.slice(0, 50)) {
+        const { data: existing } = await supabase
+          .from("incidents")
+          .select("id")
+          .eq("title", incident.title)
+          .limit(1)
+          .single();
+
+        if (!existing) {
+          await supabase.from("incidents").insert({
+            id: uuidv4(),
+            company_id: incident.companyId || null,
+            company_name: incident.companyName,
+            company_domain: incident.companyDomain,
+            title: incident.title,
+            summary: incident.summary,
+            description: incident.description,
+            severity: incident.severity,
+            status: incident.status,
+            sources: incident.sources,
+            exposed_data: incident.exposedData,
+            discovered_at: incident.discoveredAt,
+            breach_date: incident.breachDate || null,
+          });
+        }
+      }
+    } catch (dbError) {
+      console.error("Error caching to Supabase:", dbError);
+    }
+  }
+
   if (incidents.length === 0) {
     return {
       incidents: MOCK_INCIDENTS,
@@ -169,10 +216,14 @@ export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Pr
     };
   }
 
+  const sortedIncidents = incidents.sort(
+    (a, b) => new Date(b.discoveredAt).getTime() - new Date(a.discoveredAt).getTime()
+  );
+
+  setCachedIncidents(sortedIncidents);
+
   return {
-    incidents: incidents.sort(
-      (a, b) => new Date(b.discoveredAt).getTime() - new Date(a.discoveredAt).getTime()
-    ),
+    incidents: sortedIncidents,
     isMockData: false,
     sourceErrors,
   };
