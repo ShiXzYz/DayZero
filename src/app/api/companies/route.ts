@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient();
     
     if (!supabase) {
+      console.warn("[API /companies GET] Supabase not configured, using demo data");
       let companies = POPULAR_COMPANIES;
       if (query) {
         companies = companies.filter(c => 
@@ -83,11 +84,11 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     
     if (!supabase) {
+      console.error("[API /companies POST] Supabase not configured");
       return NextResponse.json({
-        company: { id: `mock-${Date.now()}`, name, domain, industry: industry || "Technology", is_public: isPublic || false },
-        isNew: true,
-        isDemo: true,
-      });
+        error: "Database not configured",
+        isConfigured: false,
+      }, { status: 503 });
     }
     
     const { data: existing } = await supabase

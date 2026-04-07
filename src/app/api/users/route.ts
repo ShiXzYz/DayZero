@@ -25,12 +25,16 @@ export async function POST(request: NextRequest) {
     const userId = uuidv4();
     
     if (!supabase) {
-      return NextResponse.json({
-        userId: `mock-${userId}`,
-        email: email.toLowerCase().trim(),
-        message: "Account created (demo mode)",
-        isDemo: true,
+      console.error("[API /users POST] Supabase not configured");
+      console.log("[DEBUG] Environment check:", {
+        hasURL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       });
+      return NextResponse.json({
+        error: "Database not configured",
+        isConfigured: false,
+      }, { status: 503 });
     }
     
     const { error } = await supabase.from("users").insert({
