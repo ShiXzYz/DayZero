@@ -139,7 +139,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             hibpChecksRemaining: 1,
           };
           
-          const { error: insertError } = await supabaseClient.from("users").insert(newUser);
+          const { error: insertError } = await supabaseClient.from("users").insert({
+            id: newUser.id,
+            email: newUser.email,
+            email_hash: newUser.emailHash,
+            created_at: newUser.createdAt,
+            updated_at: newUser.updatedAt,
+            notification_preferences: newUser.notificationPreferences,
+            subscription_tier: newUser.subscriptionTier,
+            max_company_follows: newUser.maxCompanyFollows,
+            hibp_checks_remaining: newUser.hibpChecksRemaining,
+          });
+          
           if (insertError) {
             console.error("[AuthContext] Error creating user in database:", insertError);
           } else {
