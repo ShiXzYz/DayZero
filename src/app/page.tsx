@@ -65,7 +65,7 @@ export default function FeedPage() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const isAuthenticated = user && user.email && !user.id.startsWith("anonymous");
+  const isAuthenticated = user && user.email;
 
   const fetchIncidents = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
