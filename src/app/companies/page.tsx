@@ -48,6 +48,7 @@ export default function CompaniesPage() {
   const [followedCompanies, setFollowedCompanies] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [showLimitUpgrade, setShowLimitUpgrade] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const maxFollows = user?.maxCompanyFollows || 3;
   const isPro = user?.subscriptionTier !== "free";
@@ -58,16 +59,19 @@ export default function CompaniesPage() {
       return;
     }
     
-    if (user?.id && !user.id.startsWith("anonymous")) {
+    console.log("[Companies] User:", { id: user?.id, email: user?.email, tier: user?.subscriptionTier });
+    
+    if (user?.id && user?.email) {
       console.log("[Companies] Fetching follows for user:", user.id);
       fetchFollows(user.id);
     } else {
       console.log("[Companies] User not authenticated");
       setFollowedCompanies(new Set());
     }
-  }, [user?.id, loading]);
+  }, [user?.id, user?.email, loading]);
 
   const fetchFollows = async (uid: string) => {
+    setError(null);
     try {
       const res = await fetch(`/api/follow?userId=${uid}`);
       const data = await res.json();
@@ -76,15 +80,19 @@ export default function CompaniesPage() {
       }
       if (data.error) {
         console.warn("[Companies] Error fetching follows:", data.error);
+        setError(data.error);
       }
     } catch (error) {
       console.error("[Companies] Error fetching follows:", error);
+      setError("Failed to load followed companies");
     }
   };
 
   const handleFollow = async (company: Company) => {
-    if (!user?.id || user.id.startsWith("anonymous")) {
-      console.warn("[Companies] Cannot follow: user not authenticated");
+    console.log("[Companies] handleFollow called:", { userId: user?.id, company: company.name });
+    
+    if (!user?.id || !user?.email) {
+      alert("Please sign in to follow companies");
       return;
     }
 
@@ -101,8 +109,9 @@ export default function CompaniesPage() {
         const res = await fetch(`/api/follow?userId=${user.id}&companyId=${company.id}`, {
           method: "DELETE",
         });
+        const data = await res.json();
         if (!res.ok) {
-          console.error("[Companies] Failed to unfollow:", res.status);
+          alert(`Failed to unfollow: ${data.error || res.status}`);
           return;
         }
         setFollowedCompanies(prev => {
@@ -120,15 +129,16 @@ export default function CompaniesPage() {
             companyName: company.name,
           }),
         });
+        const data = await res.json();
         if (!res.ok) {
-          const error = await res.json();
-          console.error("[Companies] Failed to follow:", error);
+          alert(`Failed to follow: ${data.error || res.status}`);
           return;
         }
         setFollowedCompanies(prev => new Set(prev).add(company.id));
       }
     } catch (error) {
       console.error("[Companies] Error toggling follow:", error);
+      alert("Network error. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -185,6 +195,11 @@ export default function CompaniesPage() {
                   ? "Limit reached. Upgrade to follow more." 
                   : `${maxFollows - followedCompanies.size} follows remaining`}
               </span>
+            </div>
+          )}
+          {error && (
+            <div className="mt-3 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
+              {error}
             </div>
           )}
         </motion.div>

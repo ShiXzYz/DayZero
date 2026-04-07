@@ -100,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function fetchUserProfile(userId: string) {
+    console.log("[AuthContext] fetchUserProfile called for:", userId);
     try {
       const supabaseClient = getSupabaseClient();
       if (!supabaseClient) {
@@ -109,18 +110,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      console.log("[AuthContext] Fetching user profile from database...");
       const { data, error } = await supabaseClient
         .from("users")
         .select("*")
         .eq("id", userId)
         .single();
 
+      console.log("[AuthContext] Database response:", { data, error });
+
       if (error && error.code === "PGRST116") {
         // User doesn't exist, create them
-        console.log("[AuthContext] User not found, creating new user:", userId);
+        console.log("[AuthContext] User not found in database, creating new user:", userId);
         const session = await supabaseClient.auth.getSession();
+        console.log("[AuthContext] Session:", !!session.data.session?.user);
         if (session.data.session?.user) {
           const { email, id } = session.data.session.user;
+          console.log("[AuthContext] Creating user with email:", email);
           const newUser: User = {
             id,
             email: email || "",
@@ -135,12 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           const { error: insertError } = await supabaseClient.from("users").insert(newUser);
           if (insertError) {
-            console.error("[AuthContext] Error creating user:", insertError);
-            setUser(newUser);
+            console.error("[AuthContext] Error creating user in database:", insertError);
           } else {
-            console.log("[AuthContext] User created successfully");
-            setUser(newUser);
+            console.log("[AuthContext] User created in database successfully");
           }
+          setUser(newUser);
+          console.log("[AuthContext] User state set to:", newUser);
         }
       } else if (error) {
         // Other error
@@ -148,14 +154,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(DEFAULT_FREE_USER);
       } else if (data) {
         // User found
-        console.log("[AuthContext] User profile loaded:", data.id);
+        console.log("[AuthContext] User profile loaded from database:", data.id, data.email);
         setUser({
           ...DEFAULT_FREE_USER,
           ...data,
         });
       } else {
         // No data and no error - shouldn't happen
-        console.warn("[AuthContext] No user data returned");
+        console.warn("[AuthContext] No user data returned from database");
         setUser(DEFAULT_FREE_USER);
       }
     } catch (error) {
