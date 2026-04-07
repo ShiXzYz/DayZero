@@ -151,16 +151,14 @@ function analyzeFilingContent(content: string): {
   let threatType = "Material event disclosure filed with SEC";
 
   if (/ransomware|ransom|extortion/i.test(lowerContent)) {
-    threatType = "Ransomware attack reported";
-    exposedTypes.push("Company systems may have been locked");
+    threatType = "Ransomware attack - hackers locked company files and demanded payment";
+    exposedTypes.push("Your account credentials may be compromised");
     severity = "Critical";
   }
 
   if (/data breach|breach of|data was|information was|records were/i.test(lowerContent)) {
-    if (!exposedTypes.includes("Company systems may have been locked")) {
-      exposedTypes.push("Sensitive company data may have been accessed");
-    }
-    threatType = "Data breach incident reported";
+    threatType = "Data breach incident - unauthorized access to company systems";
+    exposedTypes.push("Your personal information may have been exposed");
     severity = "High";
   }
 
@@ -169,47 +167,39 @@ function analyzeFilingContent(content: string): {
   }
 
   if (/personal information|personally identifiable|pii|email address|phone number/i.test(lowerContent)) {
-    exposedTypes.push("Your personal information may have been exposed");
+    exposedTypes.push("Your email and contact information may have been leaked");
   }
 
   if (/financial|payment card|credit card|bank account/i.test(lowerContent)) {
-    exposedTypes.push("Your payment or financial information may be compromised");
+    exposedTypes.push("Your payment or financial information may be at risk");
   }
 
   if (/customer|customer data|user data|client data/i.test(lowerContent)) {
-    exposedTypes.push("Customer accounts and data may be affected");
+    exposedTypes.push("Customer account data may have been accessed");
   }
 
   if (/employee|staff|personnel/i.test(lowerContent)) {
-    exposedTypes.push("Employee information may have been accessed");
+    exposedTypes.push("Employee records may have been compromised");
   }
 
   if (/cybersecurity|cybersecurity incident|security incident|cyber event/i.test(lowerContent)) {
     if (severity === "Medium") severity = "High";
-    threatType = "Cybersecurity incident disclosed";
-    if (!exposedTypes.includes("Company systems may have been locked")) {
-      exposedTypes.push("Company computer systems were potentially compromised");
-    }
+    threatType = "Cybersecurity incident - company systems potentially compromised";
+    exposedTypes.push("Your account information may be at risk");
   }
 
   if (/unauthorized|unauthorised|access without|without authorization/i.test(lowerContent)) {
-    exposedTypes.push("Unauthorized access to company systems occurred");
+    exposedTypes.push("Your account may have been accessed without authorization");
     if (severity !== "Critical") severity = "High";
   }
 
   if (/material adverse|material effect|significant impact/i.test(lowerContent)) {
-    threatType = "Material event with significant business impact";
-    severity = severity === "Medium" ? "High" : severity;
+    threatType = "Material event with significant business impact disclosed";
   }
 
-  let summary = threatType;
-  if (exposedTypes.length > 0) {
-    summary += ". " + exposedTypes.slice(0, 3).join(". ") + ".";
-  } else {
-    summary += ". This filing discloses a material event that may affect the company.";
-  }
+  const summary = threatType + ".";
 
-  return { severity, exposedTypes, summary, threatType };
+  return { severity, exposedTypes: exposedTypes.slice(0, 3), summary, threatType };
 }
 
 export async function fetchRecent8KFilings(daysBack: number = 30): Promise<SECFiling[]> {

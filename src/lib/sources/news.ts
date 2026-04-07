@@ -111,10 +111,7 @@ function getConsumerFriendlySummary(title: string, content: string): { summary: 
     }
   }
 
-  let summary = threatType;
-  if (exposedTypes.length > 0) {
-    summary += ". " + exposedTypes.slice(0, 2).join(". ") + ".";
-  }
+  const summary = threatType + ".";
 
   return { summary, exposedTypes: exposedTypes.slice(0, 4), threatType };
 }
