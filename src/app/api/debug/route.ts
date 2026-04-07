@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { fetchRecent8KFilings } from "@/lib/sources/sec-edgar";
+import { fetchRecent8KFilings, filingToIncident } from "@/lib/sources/sec-edgar";
 import { fetchAllNewsFeeds } from "@/lib/sources/news";
+import { clearCache, getCacheStats } from "@/lib/cache/incidents";
 
 interface DebugResult {
   timestamp: string;
+  cache: ReturnType<typeof getCacheStats>;
   sources: {
     sec_edgar?: {
       success: boolean;
@@ -14,7 +16,9 @@ interface DebugResult {
         ticker: string;
         formType: string;
         filedDate: string;
-        url: string;
+        summary: string;
+        severity: string;
+        exposedData: string[];
       }>;
       error?: string;
     };
@@ -26,6 +30,8 @@ interface DebugResult {
         title: string;
         source: string;
         publishedAt: string;
+        summary: string;
+        exposedTypes: string[];
       }>;
       error?: string;
     };
@@ -33,8 +39,11 @@ interface DebugResult {
 }
 
 export async function GET() {
+  clearCache();
+  
   const debug: DebugResult = {
     timestamp: new Date().toISOString(),
+    cache: getCacheStats(),
     sources: {},
   };
 
@@ -42,17 +51,23 @@ export async function GET() {
     console.log("=== DEBUG: Testing SEC EDGAR ===");
     const secStart = Date.now();
     const secFilings = await fetchRecent8KFilings(30);
+    
     debug.sources.sec_edgar = {
       success: true,
       filingsFound: secFilings.length,
       timeMs: Date.now() - secStart,
-      filings: secFilings.slice(0, 5).map(f => ({
-        company: f.companyName,
-        ticker: f.ticker,
-        formType: f.formType,
-        filedDate: f.filedDate,
-        url: f.documentUrl,
-      })),
+      filings: secFilings.slice(0, 5).map(f => {
+        const incident = filingToIncident(f);
+        return {
+          company: f.companyName,
+          ticker: f.ticker,
+          formType: f.formType,
+          filedDate: f.filedDate,
+          summary: incident.summary || "",
+          severity: incident.severity || "Unknown",
+          exposedData: incident.exposedData?.map(e => e.types).flat() || [],
+        };
+      }),
     };
     console.log(`SEC EDGAR: Found ${secFilings.length} filings in ${Date.now() - secStart}ms`);
   } catch (error) {
@@ -71,10 +86,12 @@ export async function GET() {
       success: true,
       articlesFound: news.length,
       timeMs: Date.now() - newsStart,
-      articles: news.slice(0, 3).map(a => ({
+      articles: news.slice(0, 5).map(a => ({
         title: a.title,
         source: a.source,
         publishedAt: a.publishedAt,
+        summary: a.summary,
+        exposedTypes: a.exposedTypes || [],
       })),
     };
     console.log(`News: Found ${news.length} articles in ${Date.now() - newsStart}ms`);

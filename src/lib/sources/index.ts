@@ -1,5 +1,5 @@
 import { Incident } from "@/types";
-import { fetchRecent8KFilings, isCybersecurityFiling } from "./sec-edgar";
+import { fetchRecent8KFilings, filingToIncident } from "./sec-edgar";
 import { fetchAllNewsFeeds } from "./news";
 import { getCachedIncidents, setCachedIncidents } from "@/lib/cache/incidents";
 import { getSupabaseClient } from "@/lib/supabase/admin";
@@ -233,7 +233,7 @@ async function fetchSECIncidents(): Promise<Incident[]> {
   try {
     console.log("Fetching SEC 8-K filings...");
     
-    let filings = await fetchRecent8KFilings(30);
+    const filings = await fetchRecent8KFilings(30);
 
     console.log(`Found ${filings.length} 8-K filings from SEC EDGAR`);
     
@@ -242,74 +242,30 @@ async function fetchSECIncidents(): Promise<Incident[]> {
       return [];
     }
     
-    const cyberFilings = filings.filter(filing => isCybersecurityFiling(filing));
-    console.log(`${cyberFilings.length} filings contain cybersecurity keywords`);
-    
-    if (cyberFilings.length === 0) {
-      console.log("No cyber-specific filings found, showing all 8-K filings from monitored companies");
-      return filings.map(filing => ({
+    return filings.map(filing => {
+      const incident = filingToIncident(filing);
+      return {
         id: `sec-${filing.accessionNumber}`,
         companyId: "",
         companyName: filing.companyName,
         companyDomain: `${filing.ticker.toLowerCase()}.com`,
-        title: `${filing.companyName} - SEC ${filing.formType}`,
-        summary: "SEC filing detected - may contain material event disclosures",
-        description: "SEC 8-K filing for public company. 8-K forms are used to report material events to the SEC including leadership changes, financial results, and material contracts.",
-        severity: determineSeverityFromSEC(filing.content || filing.formType),
-        status: "investigating" as const,
-        sources: [{
-          type: "sec_filing" as const,
-          sourceName: "SEC EDGAR",
-          url: filing.documentUrl,
-          confidence: 0.7,
-          discoveredAt: filing.filedDate,
-        }],
-        exposedData: [],
+        title: incident.title!,
+        summary: incident.summary!,
+        description: incident.description!,
+        severity: incident.severity!,
+        status: incident.status!,
+        sources: incident.sources!,
+        exposedData: incident.exposedData!,
         breachDate: filing.filedDate,
         discoveredAt: filing.filedDate,
         reportedAt: filing.filedDate,
         updatedAt: new Date().toISOString(),
-      }));
-    }
-    
-    return cyberFilings.map(filing => ({
-      id: `sec-${filing.accessionNumber}`,
-      companyId: "",
-      companyName: filing.companyName,
-      companyDomain: `${filing.ticker.toLowerCase()}.com`,
-      title: `${filing.companyName} - SEC ${filing.formType}`,
-      summary: "Cybersecurity incident disclosure filed with SEC",
-      description: "Material cybersecurity incident disclosure filed with SEC under new 4-day disclosure rules.",
-      severity: determineSeverityFromSEC(filing.content || filing.formType),
-      status: "investigating" as const,
-      sources: [{
-        type: "sec_filing" as const,
-        sourceName: "SEC EDGAR",
-        url: filing.documentUrl,
-        confidence: 0.95,
-        discoveredAt: filing.filedDate,
-      }],
-      exposedData: [],
-      breachDate: filing.filedDate,
-      discoveredAt: filing.filedDate,
-      reportedAt: filing.filedDate,
-      updatedAt: new Date().toISOString(),
-    }));
+      } as Incident;
+    });
   } catch (error) {
     console.error("Error fetching SEC incidents:", error);
     throw error;
   }
-}
-
-function determineSeverityFromSEC(content: string): "Critical" | "High" | "Medium" | "Low" {
-  const criticalKeywords = ["ransomware", "material breach", "significant unauthorized", "substantial data"];
-  const highKeywords = ["cybersecurity incident", "security breach", "unauthorized access", "data compromise"];
-  
-  const lowerContent = content.toLowerCase();
-  
-  if (criticalKeywords.some(k => lowerContent.includes(k))) return "Critical";
-  if (highKeywords.some(k => lowerContent.includes(k))) return "High";
-  return "Medium";
 }
 
 async function fetchNewsIncidents(): Promise<Incident[]> {

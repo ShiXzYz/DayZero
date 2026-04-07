@@ -1,7 +1,6 @@
 import { Incident, SECFiling, Severity } from "@/types";
 
 const SEC_EDGAR_API = "https://data.sec.gov/submissions";
-
 const USER_AGENT = "DayZero App contact@dayzero.app";
 
 interface EDGARSubmissions {
@@ -19,16 +18,6 @@ interface EDGARSubmissions {
   };
 }
 
-const CRITICAL_KEYWORDS = [
-  "ransomware", "material breach", "significant unauthorized", "substantial data",
-  "data exfiltration", "massive breach", "critical vulnerability"
-];
-
-const HIGH_KEYWORDS = [
-  "cybersecurity incident", "security breach", "data compromise", 
-  "unauthorized access", "privacy incident", "network attack"
-];
-
 const KNOWN_CIKs = [
   { cik: "0001652044", ticker: "GOOGL", name: "Alphabet Inc." },
   { cik: "0001326380", ticker: "UBER", name: "Uber Technologies" },
@@ -38,25 +27,6 @@ const KNOWN_CIKs = [
   { cik: "0001326801", ticker: "META", name: "Meta Platforms Inc." },
   { cik: "0001045810", ticker: "NVDA", name: "NVIDIA Corporation" },
 ];
-
-const CYBERSECURITY_KEYWORDS = [
-  "cybersecurity", "cyber security", "data breach", "security incident",
-  "unauthorized access", "ransomware", "malware", "phishing", "data leak",
-  "information security", "privacy incident", "network intrusion",
-  "extraction", "exfiltration", "material breach", "incident"
-];
-
-const DATA_EXPOSURE_MAPPING: Record<string, string[]> = {
-  "credentials": ["Your login password", "Your account password", "Password"],
-  "personal": ["Your name", "Your personal information", "Your home address"],
-  "financial": ["Your credit card number", "Your bank account", "Your payment info"],
-  "medical": ["Your medical records", "Your health information", "Your prescription history"],
-  "phone": ["Your phone number", "Your mobile number"],
-  "email": ["Your email address", "Your contact information"],
-  "ssn": ["Your Social Security Number", "Your SSN"],
-  "drivers_license": ["Your driver's license number", "Your ID number"],
-  "passport": ["Your passport number", "Your travel document"],
-};
 
 async function fetchWithRetry(url: string, retries = 2): Promise<Response | null> {
   for (let i = 0; i < retries; i++) {
@@ -81,7 +51,39 @@ async function fetchWithRetry(url: string, retries = 2): Promise<Response | null
   return null;
 }
 
-export async function getCompanyFilings(cik: string): Promise<EDGARSubmissions | null> {
+async function fetchFilingContent(url: string): Promise<string> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml",
+      },
+    });
+
+    if (!response.ok) return "";
+
+    const html = await response.text();
+    return stripHtml(html);
+  } catch {
+    return "";
+  }
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function getCompanyFilings(cik: string): Promise<EDGARSubmissions | null> {
   try {
     const paddedCik = cik.padStart(10, "0");
     const response = await fetchWithRetry(`${SEC_EDGAR_API}/CIK${paddedCik}.json`);
@@ -136,52 +138,78 @@ function parse8KFilings(filings: EDGARSubmissions, daysBack: number = 30): SECFi
     });
 }
 
-function containsCybersecurityKeyword(text: string): boolean {
-  const lowerText = text.toLowerCase();
-  return CYBERSECURITY_KEYWORDS.some(keyword => lowerText.includes(keyword));
-}
-
-function determineSeverity(content: string): Severity {
+function analyzeFilingContent(content: string): { 
+  severity: Severity; 
+  exposedTypes: string[];
+  summary: string;
+  threatType: string;
+} {
   const lowerContent = content.toLowerCase();
   
-  if (CRITICAL_KEYWORDS.some(k => lowerContent.includes(k))) return "Critical";
-  if (HIGH_KEYWORDS.some(k => lowerContent.includes(k))) return "High";
-  return "Medium";
-}
-
-function getConsumerFriendlySummary(companyName: string, content: string): { summary: string; exposedTypes: string[] } {
-  const lowerContent = content.toLowerCase();
   const exposedTypes: string[] = [];
+  let severity: Severity = "Medium";
+  let threatType = "Material event disclosure filed with SEC";
 
-  if (lowerContent.includes("credential") || lowerContent.includes("password") || lowerContent.includes("login")) {
-    exposedTypes.push("Your password may have been exposed");
-  }
-  if (lowerContent.includes("email") || lowerContent.includes("personal information")) {
-    exposedTypes.push("Your email and personal info may have been accessed");
-  }
-  if (lowerContent.includes("credit card") || lowerContent.includes("payment") || lowerContent.includes("financial")) {
-    exposedTypes.push("Your payment information may be at risk");
-  }
-  if (lowerContent.includes("ssn") || lowerContent.includes("social security")) {
-    exposedTypes.push("Your Social Security Number may have been compromised");
-  }
-  if (lowerContent.includes("medical") || lowerContent.includes("health")) {
-    exposedTypes.push("Your medical records may have been exposed");
-  }
-  if (lowerContent.includes("address") || lowerContent.includes("phone")) {
-    exposedTypes.push("Your contact details may have been leaked");
-  }
-  if (lowerContent.includes("ransomware")) {
-    exposedTypes.push("Ransomware attack - company systems were locked");
+  if (/ransomware|ransom|extortion/i.test(lowerContent)) {
+    threatType = "Ransomware attack reported";
+    exposedTypes.push("Company systems may have been locked");
+    severity = "Critical";
   }
 
-  if (exposedTypes.length === 0) {
-    exposedTypes.push("Material event disclosure filed with SEC");
+  if (/data breach|breach of|data was|information was|records were/i.test(lowerContent)) {
+    if (!exposedTypes.includes("Company systems may have been locked")) {
+      exposedTypes.push("Sensitive company data may have been accessed");
+    }
+    threatType = "Data breach incident reported";
+    severity = "High";
   }
 
-  const summary = exposedTypes.slice(0, 3).join(". ") + ".";
+  if (/password|credential|login|authentication/i.test(lowerContent)) {
+    exposedTypes.push("Your password or login credentials may be at risk");
+  }
 
-  return { summary, exposedTypes };
+  if (/personal information|personally identifiable|pii|email address|phone number/i.test(lowerContent)) {
+    exposedTypes.push("Your personal information may have been exposed");
+  }
+
+  if (/financial|payment card|credit card|bank account/i.test(lowerContent)) {
+    exposedTypes.push("Your payment or financial information may be compromised");
+  }
+
+  if (/customer|customer data|user data|client data/i.test(lowerContent)) {
+    exposedTypes.push("Customer accounts and data may be affected");
+  }
+
+  if (/employee|staff|personnel/i.test(lowerContent)) {
+    exposedTypes.push("Employee information may have been accessed");
+  }
+
+  if (/cybersecurity|cybersecurity incident|security incident|cyber event/i.test(lowerContent)) {
+    if (severity === "Medium") severity = "High";
+    threatType = "Cybersecurity incident disclosed";
+    if (!exposedTypes.includes("Company systems may have been locked")) {
+      exposedTypes.push("Company computer systems were potentially compromised");
+    }
+  }
+
+  if (/unauthorized|unauthorised|access without|without authorization/i.test(lowerContent)) {
+    exposedTypes.push("Unauthorized access to company systems occurred");
+    if (severity !== "Critical") severity = "High";
+  }
+
+  if (/material adverse|material effect|significant impact/i.test(lowerContent)) {
+    threatType = "Material event with significant business impact";
+    severity = severity === "Medium" ? "High" : severity;
+  }
+
+  let summary = threatType;
+  if (exposedTypes.length > 0) {
+    summary += ". " + exposedTypes.slice(0, 3).join(". ") + ".";
+  } else {
+    summary += ". This filing discloses a material event that may affect the company.";
+  }
+
+  return { severity, exposedTypes, summary, threatType };
 }
 
 export async function fetchRecent8KFilings(daysBack: number = 30): Promise<SECFiling[]> {
@@ -205,19 +233,12 @@ export async function fetchRecent8KFilings(daysBack: number = 30): Promise<SECFi
         continue;
       }
 
-      for (const filing of filings) {
-        const incident: SECFiling = {
-          accessionNumber: filing.accessionNumber,
-          companyName: filing.companyName || company.name,
-          ticker: filing.ticker || company.ticker,
-          formType: filing.formType,
-          filedDate: filing.filedDate,
-          documentUrl: filing.documentUrl,
-          items: [],
-          content: filing.content,
-        };
+      console.log(`Found ${filings.length} 8-K filings for ${company.ticker}`);
 
-        allFilings.push(incident);
+      for (const filing of filings) {
+        const content = await fetchFilingContent(filing.documentUrl);
+        filing.content = content;
+        allFilings.push(filing);
       }
 
       await new Promise(r => setTimeout(r, 250));
@@ -234,35 +255,30 @@ export async function fetchRecent8KFilings(daysBack: number = 30): Promise<SECFi
   return sorted;
 }
 
-export function isCybersecurityFiling(filing: SECFiling): boolean {
-  const searchText = `${filing.companyName} ${filing.formType} ${filing.content}`.toLowerCase();
-  return containsCybersecurityKeyword(searchText);
-}
-
 export function filingToIncident(filing: SECFiling): Partial<Incident> {
-  const isCyber = isCybersecurityFiling(filing);
-  const { summary: consumerSummary, exposedTypes } = getConsumerFriendlySummary(filing.companyName, filing.content);
+  const { severity, exposedTypes, summary } = analyzeFilingContent(filing.content);
   
   const exposedData = exposedTypes.map(type => ({
-    category: type.includes("password") ? "credentials" as const :
-              type.includes("payment") || type.includes("credit card") ? "financial" as const :
+    category: type.includes("password") || type.includes("login") || type.includes("credential") ? "credentials" as const :
+              type.includes("payment") || type.includes("financial") || type.includes("credit card") ? "financial" as const :
               type.includes("medical") || type.includes("health") ? "medical" as const :
-              type.includes("email") || type.includes("contact") ? "personal" as const :
+              type.includes("personal") || type.includes("email") || type.includes("phone") ? "personal" as const :
+              type.includes("customer") || type.includes("user") ? "other" as const :
               "other" as const,
     types: [type],
   }));
 
   return {
-    title: `${filing.companyName} - ${isCyber ? "Security Incident" : "SEC Filing"}`,
-    summary: consumerSummary,
-    description: `SEC ${filing.formType} filed on ${filing.filedDate}. ${consumerSummary}`,
-    severity: determineSeverity(filing.content || filing.formType),
+    title: `${filing.companyName} - ${severity === "Critical" || severity === "High" ? "Security Incident" : "Material Filing"}`,
+    summary,
+    description: `SEC ${filing.formType} filed on ${filing.filedDate}. ${summary}`,
+    severity,
     status: "investigating",
     sources: [{
       type: "sec_filing",
       sourceName: "SEC EDGAR",
       url: filing.documentUrl,
-      confidence: isCyber ? 0.95 : 0.7,
+      confidence: severity === "Critical" || severity === "High" ? 0.95 : 0.7,
       discoveredAt: filing.filedDate,
     }],
     exposedData,
