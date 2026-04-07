@@ -11,8 +11,9 @@ interface CompanyPageProps {
 }
 
 async function fetchCompanyIncidents(companyName: string): Promise<Incident[]> {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://dayzero-eta.vercel.app';
   const response = await fetch(
-    `/api/incidents?companyName=${encodeURIComponent(companyName)}&limit=100`,
+    `${baseUrl}/api/incidents?companyName=${encodeURIComponent(companyName)}&limit=100`,
     { cache: "no-store" }
   );
 

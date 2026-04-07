@@ -52,7 +52,7 @@ const SOURCE_ICONS: Record<SourceType, React.ReactNode> = {
 
 
 
-const INITIAL_LIMIT = 30;
+const INITIAL_LIMIT = 10;
 const LOAD_MORE_COUNT = 30;
 
 export default function FeedPage() {
@@ -424,7 +424,7 @@ export default function FeedPage() {
                     <div className="mt-4 flex items-center justify-between">
                       <div className="flex items-center gap-4 text-xs text-slate-500">
                         <span>Confidence: {Math.round((incident.sources[0]?.confidence || 0) * 100)}%</span>
-                        {incident.riskScore && (
+                        {user?.subscriptionTier !== "free" && incident.riskScore && (
                           <span className={`flex items-center gap-1.5 ${
                             incident.riskScore.label === "Critical" ? "text-red-400" :
                             incident.riskScore.label === "High" ? "text-orange-400" :
