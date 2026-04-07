@@ -458,10 +458,10 @@ export default function FeedPage() {
                     {user?.subscriptionTier !== "free" && (
                       <div className="mt-3 pt-3 border-t border-slate-800 flex gap-2">
                         <Link
-                          href="/check-exposure"
+                          href={`/company/${encodeURIComponent(incident.companyName)}`}
                           className="flex-1 text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 rounded-lg px-3 py-2 text-center font-medium transition-colors"
                         >
-                          Check if affected
+                          View Company
                         </Link>
                         <Link
                           href={`/companies?follow=${encodeURIComponent(incident.companyName)}`}
