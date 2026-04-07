@@ -9,12 +9,12 @@ interface RSSItem {
 }
 
 const RSS_FEEDS = [
-  { name: "DataBreaches", url: "https://www.databreaches.net/feed/" },
   { name: "BleepingComputer", url: "https://www.bleepingcomputer.com/feed/" },
-  { name: "Krebs on Security", url: "https://krebsonsecurity.com/feed/" },
   { name: "The Hacker News", url: "https://feeds.feedburner.com/TheHackersNews" },
+  { name: "Krebs on Security", url: "https://krebsonsecurity.com/feed/" },
   { name: "Dark Reading", url: "https://www.darkreading.com/rss.xml" },
   { name: "SecurityWeek", url: "https://www.securityweek.com/feed/" },
+  { name: "DataBreaches", url: "https://www.databreaches.net/feed/" },
 ];
 
 const BREACH_KEYWORDS = [
@@ -23,22 +23,98 @@ const BREACH_KEYWORDS = [
   "malware", "phishing", "credential stuffing", "data theft"
 ];
 
-const COMPANY_EXTractors = [
-  /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:discloses|reports|confirms|investigates|hit by|affected by|breached)/gi,
-  /(?:Affected|Impacted):\s*([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)/gi,
-  /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:user|customer|employee|data)/gi,
-];
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isBreachRelated(article: { title: string; summary: string }): boolean {
+  const content = (article.title + " " + article.summary).toLowerCase();
+  return BREACH_KEYWORDS.some(keyword => content.includes(keyword.toLowerCase()));
+}
+
+function extractTags(text: string): string[] {
+  const tags: string[] = [];
+  const lowerText = text.toLowerCase();
+
+  if (lowerText.includes("ransomware")) tags.push("Ransomware");
+  if (lowerText.includes("phishing")) tags.push("Phishing");
+  if (lowerText.includes("data breach") || lowerText.includes("breach")) tags.push("Data Breach");
+  if (lowerText.includes("credential")) tags.push("Credential Leak");
+  if (lowerText.includes("malware")) tags.push("Malware");
+  if (lowerText.includes("ddos")) tags.push("DDoS");
+  if (lowerText.includes("api")) tags.push("API Security");
+  if (lowerText.includes("zero-day") || lowerText.includes("zero day")) tags.push("Zero-Day");
+  if (lowerText.includes("vulnerability")) tags.push("Vulnerability");
+  if (lowerText.includes("data leak") || lowerText.includes("leak")) tags.push("Data Leak");
+
+  return tags;
+}
+
+function parseRSS(xml: string): RSSItem[] {
+  const items: RSSItem[] = [];
+  
+  const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+  let itemMatch;
+
+  while ((itemMatch = itemRegex.exec(xml)) !== null) {
+    const itemXml = itemMatch[1];
+    
+    const title = extractTag(itemXml, "title");
+    const link = extractTag(itemXml, "link") || extractCDATALink(itemXml);
+    const description = extractCDATA(itemXml, "description") || extractTag(itemXml, "description");
+    const pubDate = extractTag(itemXml, "pubDate") || extractTag(itemXml, "dc:date");
+
+    if (title) {
+      items.push({
+        title: title.trim(),
+        link: link?.trim() || "",
+        description: description?.trim() || "",
+        pubDate: pubDate?.trim() || new Date().toISOString(),
+      });
+    }
+  }
+
+  return items;
+}
+
+function extractTag(xml: string, tag: string): string | undefined {
+  const regex = new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, "i");
+  const match = xml.match(regex);
+  return match?.[1];
+}
+
+function extractCDATA(xml: string, tag: string): string | undefined {
+  const regex = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]></${tag}>`, "i");
+  const match = xml.match(regex);
+  return match?.[1];
+}
+
+function extractCDATALink(xml: string): string | undefined {
+  const regex = /<link[^>]*><!\[CDATA\[([^\]]*)\]\]><\/link>/i;
+  const match = xml.match(regex);
+  return match?.[1];
+}
 
 export async function fetchRSSFeed(feedUrl: string): Promise<RSSItem[]> {
   try {
-    const response = await fetch(`/api/rss?url=${encodeURIComponent(feedUrl)}`);
-    
+    const response = await fetch(feedUrl, {
+      headers: {
+        "User-Agent": "DayZero App contact@dayzero.app",
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+      },
+    });
+
     if (!response.ok) {
+      console.error(`Failed to fetch ${feedUrl}: ${response.status}`);
       return [];
     }
 
-    const data = await response.json();
-    return data.items || [];
+    const xml = await response.text();
+    return parseRSS(xml);
   } catch (error) {
     console.error(`Error fetching RSS feed ${feedUrl}:`, error);
     return [];
@@ -49,17 +125,22 @@ export async function fetchAllNewsFeeds(): Promise<NewsArticle[]> {
   const articles: NewsArticle[] = [];
   
   const feedPromises = RSS_FEEDS.map(async feed => {
-    const items = await fetchRSSFeed(feed.url);
-    return items.map(item => ({
-      id: `${feed.name}-${Buffer.from(item.link).toString("base64").slice(0, 12)}`,
-      title: item.title,
-      source: feed.name,
-      url: item.link,
-      publishedAt: item.pubDate,
-      summary: stripHtml(item.description || "").slice(0, 300),
-      relatedCompanies: extractCompanyNames(item.title + " " + item.description),
-      tags: extractTags(item.title + " " + item.description),
-    }));
+    try {
+      const items = await fetchRSSFeed(feed.url);
+      return items.map(item => ({
+        id: `${feed.name}-${Buffer.from(item.link || item.title).toString("base64").slice(0, 12)}`,
+        title: item.title,
+        source: feed.name,
+        url: item.link,
+        publishedAt: item.pubDate,
+        summary: stripHtml(item.description || "").slice(0, 300),
+        relatedCompanies: [] as string[],
+        tags: extractTags(item.title + " " + item.description),
+      }));
+    } catch (error) {
+      console.error(`Error processing feed ${feed.name}:`, error);
+      return [];
+    }
   });
 
   const results = await Promise.allSettled(feedPromises);
@@ -100,53 +181,8 @@ export function newsToIncident(article: NewsArticle): Partial<Incident> {
   };
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, "")
-    .replace(/&[a-z]+;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isBreachRelated(article: NewsArticle): boolean {
-  const content = (article.title + " " + article.summary).toLowerCase();
-  return BREACH_KEYWORDS.some(keyword => content.includes(keyword.toLowerCase()));
-}
-
-function extractCompanyNames(text: string): string[] {
-  const companies = new Set<string>();
-  
-  for (const regex of COMPANY_EXTractors) {
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      const company = match[1].trim();
-      if (company.length > 2 && company.length < 50 && !isCommonWord(company)) {
-        companies.add(company);
-      }
-    }
-  }
-
-  return Array.from(companies);
-}
-
-function extractTags(text: string): string[] {
-  const tags: string[] = [];
-  const lowerText = text.toLowerCase();
-
-  if (lowerText.includes("ransomware")) tags.push("Ransomware");
-  if (lowerText.includes("phishing")) tags.push("Phishing");
-  if (lowerText.includes("data breach") || lowerText.includes("breach")) tags.push("Data Breach");
-  if (lowerText.includes("credential")) tags.push("Credential Leak");
-  if (lowerText.includes("malware")) tags.push("Malware");
-  if (lowerText.includes("ddos")) tags.push("DDoS");
-  if (lowerText.includes("api")) tags.push("API Security");
-  if (lowerText.includes("zero-day") || lowerText.includes("zero day")) tags.push("Zero-Day");
-
-  return tags;
-}
-
 function determineSeverity(summary: string): "Critical" | "High" | "Medium" | "Low" {
-  const critical = ["ransomware", "million records", "mass breach", "critical vulnerability", "data exfiltration"];
+  const critical = ["ransomware", "million records", "critical vulnerability", "data exfiltration"];
   const high = ["breach", "compromised", "unauthorized", "cyberattack", "exposed"];
   const medium = ["leak", "vulnerability", "incident", "hack"];
 
@@ -156,16 +192,6 @@ function determineSeverity(summary: string): "Critical" | "High" | "Medium" | "L
   if (high.some(term => lower.includes(term))) return "High";
   if (medium.some(term => lower.includes(term))) return "Medium";
   return "Low";
-}
-
-function isCommonWord(word: string): boolean {
-  const common = [
-    "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
-    "her", "was", "one", "our", "out", "day", "get", "has", "him", "his",
-    "how", "its", "may", "new", "now", "old", "see", "two", "way", "who",
-    "boy", "did", "man", "use", "data", "users", "company", "security"
-  ];
-  return common.includes(word.toLowerCase());
 }
 
 export async function searchNewsByCompany(companyName: string): Promise<NewsArticle[]> {
