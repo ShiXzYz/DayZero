@@ -91,7 +91,7 @@ export async function GET() {
         source: a.source,
         publishedAt: a.publishedAt,
         summary: a.summary,
-        exposedTypes: a.exposedTypes || [],
+        exposedTypes: a.exposedTypes || a.tags || [],
       })),
     };
     console.log(`News: Found ${news.length} articles in ${Date.now() - newsStart}ms`);

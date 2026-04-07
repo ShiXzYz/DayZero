@@ -289,10 +289,14 @@ async function fetchNewsIncidents(): Promise<Incident[]> {
         confidence: 0.7,
         discoveredAt: article.publishedAt,
       }],
-      exposedData: [{
-        category: "other" as const,
-        types: article.tags,
-      }],
+      exposedData: (article.exposedTypes || article.tags).map((type: string) => ({
+        category: type.includes("password") || type.includes("credential") ? "credentials" as const :
+                  type.includes("payment") || type.includes("financial") || type.includes("credit card") ? "financial" as const :
+                  type.includes("medical") || type.includes("health") ? "medical" as const :
+                  type.includes("personal") || type.includes("email") || type.includes("contact") ? "personal" as const :
+                  "other" as const,
+        types: [type],
+      })),
       discoveredAt: article.publishedAt,
       reportedAt: article.publishedAt,
       updatedAt: new Date().toISOString(),
