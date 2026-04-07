@@ -159,6 +159,8 @@ export default function FeedPage() {
               LIVE
             </span>
           </Link>
+          
+          {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-6 text-sm text-slate-400">
             <Link href="/" className="text-white hover:text-white transition-colors">Feed</Link>
             <Link href="/companies" className="hover:text-white transition-colors">Companies</Link>
@@ -168,7 +170,48 @@ export default function FeedPage() {
               <Link href="/settings/subscription" className="hover:text-white transition-colors text-amber-400">Pro</Link>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label="Menu"
+          >
+            <div className="w-6 h-5 flex flex-col justify-between">
+              <span className={`block h-0.5 w-6 bg-current transition-all ${showUserMenu ? "rotate-45 translate-y-2" : ""}`}></span>
+              <span className={`block h-0.5 w-6 bg-current transition-all ${showUserMenu ? "opacity-0" : ""}`}></span>
+              <span className={`block h-0.5 w-6 bg-current transition-all ${showUserMenu ? "-rotate-45 -translate-y-2" : ""}`}></span>
+            </div>
+          </button>
+          
+          {/* Mobile Dropdown Menu */}
+          {showUserMenu && (
+            <div className="absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 md:hidden z-50" onClick={() => setShowUserMenu(false)}>
+              <div className="flex flex-col py-2">
+                <Link href="/" className="px-4 py-3 text-white hover:bg-slate-800 transition-colors">Feed</Link>
+                <Link href="/companies" className="px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">Companies</Link>
+                <Link href="/alerts" className="px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">Alerts</Link>
+                <Link href="/check-exposure" className="px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">Check Exposure</Link>
+                {user?.subscriptionTier !== "free" && (
+                  <Link href="/settings/subscription" className="px-4 py-3 text-amber-400 hover:bg-slate-800 transition-colors">
+                    <Crown className="inline h-4 w-4 mr-2" />
+                    Pro
+                  </Link>
+                )}
+                {isAuthenticated && (
+                  <button
+                    onClick={() => { signOut(); setShowUserMenu(false); }}
+                    className="px-4 py-3 text-left text-slate-300 hover:bg-slate-800 hover:text-white transition-colors flex items-center gap-2"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          
+          <div className="hidden md:flex items-center gap-3">
             {isAuthenticated ? (
               <div className="relative">
                 <button
