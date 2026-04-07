@@ -14,6 +14,11 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      return NextResponse.json({ follows: [] });
+    }
+
     const { data: follows, error } = await supabase
       .from("follows")
       .select("*")
@@ -59,6 +64,14 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      return NextResponse.json({
+        follow: { id: `mock-${Date.now()}`, userId, companyId, companyName, isDemo: true },
+        isNew: true,
+        isDemo: true,
+      });
+    }
 
     const { data: existing } = await supabase
       .from("follows")
@@ -133,6 +146,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      return NextResponse.json({ success: true, isDemo: true });
+    }
 
     if (followId) {
       const { error } = await supabase

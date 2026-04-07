@@ -15,8 +15,17 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
     let aggregationResult;
-    let isDemoData = false;
+    let isDemoData = true;
     let sourceErrors: string[] = [];
+
+    if (!supabase) {
+      console.log("Supabase not configured, using mock data");
+      return NextResponse.json({ 
+        incidents: MOCK_INCIDENTS,
+        isDemoData: true,
+        sourceErrors: ["Database not configured. Showing demo incidents."],
+      });
+    }
 
     try {
       aggregationResult = await aggregateIncidents();
@@ -25,94 +34,89 @@ export async function GET(request: NextRequest) {
 
       if (refresh || !companyId) {
         for (const incident of aggregationResult.incidents.slice(0, 100)) {
-          const { data: existing } = await supabase
-            .from("incidents")
-            .select("id")
-            .eq("title", incident.title)
-            .limit(1)
-            .single();
+          try {
+            const { data: existing } = await supabase
+              .from("incidents")
+              .select("id")
+              .eq("title", incident.title)
+              .limit(1)
+              .single();
 
-          if (!existing) {
-            await supabase.from("incidents").insert({
-              id: uuidv4(),
-              company_id: incident.companyId || null,
-              company_name: incident.companyName,
-              company_domain: incident.companyDomain,
-              title: incident.title,
-              summary: incident.summary,
-              description: incident.description,
-              severity: incident.severity,
-              status: incident.status,
-              sources: incident.sources,
-              exposed_data: incident.exposedData,
-              discovered_at: incident.discoveredAt,
-              breach_date: incident.breachDate || null,
-            });
+            if (!existing) {
+              await supabase.from("incidents").insert({
+                id: uuidv4(),
+                company_id: incident.companyId || null,
+                company_name: incident.companyName,
+                company_domain: incident.companyDomain,
+                title: incident.title,
+                summary: incident.summary,
+                description: incident.description,
+                severity: incident.severity,
+                status: incident.status,
+                sources: incident.sources,
+                exposed_data: incident.exposedData,
+                discovered_at: incident.discoveredAt,
+                breach_date: incident.breachDate || null,
+              });
+            }
+          } catch (insertError) {
+            console.error("Error inserting incident:", insertError);
           }
         }
       }
     } catch (aggError) {
-      console.error("Aggregation error, using mock data:", aggError);
-      aggregationResult = { incidents: MOCK_INCIDENTS, isMockData: true, sourceErrors: ["Live data unavailable. Showing demo incidents."] };
+      console.error("Aggregation error:", aggError);
+      aggregationResult = { incidents: [], isMockData: true, sourceErrors: ["Live data unavailable."] };
       isDemoData = true;
-      sourceErrors = ["Live data unavailable. Showing demo incidents."];
     }
 
-    let queryBuilder = supabase
-      .from("incidents")
-      .select("*")
-      .order("discovered_at", { ascending: false })
-      .limit(limit);
+    try {
+      let queryBuilder = supabase
+        .from("incidents")
+        .select("*")
+        .order("discovered_at", { ascending: false })
+        .limit(limit);
 
-    if (companyId) {
-      queryBuilder = queryBuilder.eq("company_id", companyId);
-    }
+      if (companyId) {
+        queryBuilder = queryBuilder.eq("company_id", companyId);
+      }
 
-    const { data: incidents, error } = await queryBuilder;
+      const { data: incidents, error: queryError } = await queryBuilder;
 
-    let formattedIncidents: any[] = [];
+      if (queryError) {
+        console.error("Query error:", queryError);
+      } else if (incidents && incidents.length > 0) {
+        const formattedIncidents = incidents.map(incident => ({
+          id: incident.id,
+          companyId: incident.company_id,
+          companyName: incident.company_name,
+          companyDomain: incident.company_domain,
+          title: incident.title,
+          summary: incident.summary,
+          description: incident.description,
+          severity: incident.severity,
+          status: incident.status,
+          sources: incident.sources,
+          exposedData: incident.exposed_data,
+          discoveredAt: incident.discovered_at,
+          breachDate: incident.breach_date,
+          updatedAt: incident.updated_at,
+        }));
 
-    if (incidents && incidents.length > 0) {
-      formattedIncidents = incidents.map(incident => ({
-        id: incident.id,
-        companyId: incident.company_id,
-        companyName: incident.company_name,
-        companyDomain: incident.company_domain,
-        title: incident.title,
-        summary: incident.summary,
-        description: incident.description,
-        severity: incident.severity,
-        status: incident.status,
-        sources: incident.sources,
-        exposedData: incident.exposed_data,
-        discoveredAt: incident.discovered_at,
-        breachDate: incident.breach_date,
-        updatedAt: incident.updated_at,
-      }));
-    }
-
-    if (formattedIncidents.length === 0 && isDemoData) {
-      formattedIncidents = MOCK_INCIDENTS;
-    }
-
-    if (severity) {
-      formattedIncidents = formattedIncidents.filter(i => i.severity === severity);
-    }
-
-    if (status) {
-      formattedIncidents = formattedIncidents.filter(i => i.status === status);
-    }
-
-    if (source) {
-      formattedIncidents = formattedIncidents.filter(i =>
-        i.sources?.some((s: { type: string }) => s.type === source)
-      );
+        return NextResponse.json({ 
+          incidents: formattedIncidents,
+          isDemoData: false,
+          sourceErrors: [],
+        });
+      }
+    } catch (dbError) {
+      console.error("Database query error:", dbError);
     }
 
     return NextResponse.json({ 
-      incidents: formattedIncidents,
-      isDemoData,
-      sourceErrors,
+      incidents: MOCK_INCIDENTS,
+      isDemoData: true,
+      sourceErrors: ["No data in database. Showing demo incidents."],
     });
   } catch (error) {
     console.error("Error fetching incidents:", error);
@@ -148,6 +152,23 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      return NextResponse.json(
+        { 
+          incident: {
+            id: uuidv4(),
+            title,
+            summary,
+            isDemo: true,
+          },
+          isNew: true,
+          isDemo: true,
+        },
+        { status: 200 }
+      );
+    }
+
     const incidentId = uuidv4();
 
     const { data, error } = await supabase

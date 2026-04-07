@@ -14,6 +14,11 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      return NextResponse.json({ alerts: [] });
+    }
+
     const { data: alerts, error } = await supabase
       .from("alerts")
       .select("*")
@@ -63,6 +68,11 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      return NextResponse.json({ id: `mock-${Date.now()}`, userId, type, title, message, isDemo: true });
+    }
+
     const { data, error } = await supabase
       .from("alerts")
       .insert({
@@ -116,6 +126,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      return NextResponse.json({ success: true, isDemo: true });
+    }
+
     const { error } = await supabase
       .from("alerts")
       .update({ is_read: isRead !== undefined ? isRead : true })
@@ -152,6 +167,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      return NextResponse.json({ success: true, isDemo: true });
+    }
+
     const { error } = await supabase
       .from("alerts")
       .delete()

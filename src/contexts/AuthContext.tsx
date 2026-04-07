@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, SubscriptionTier } from "@/types";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { supabase, isSupabaseConfigured, getSupabaseClient } from "@/lib/supabase/client";
 
 interface AuthContextType {
   user: User | null;
@@ -53,7 +53,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const supabaseClient = getSupabaseClient();
+    if (!supabaseClient) {
+      setUser(DEFAULT_FREE_USER);
+      setLoading(false);
+      return;
+    }
+
+    supabaseClient.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         fetchUserProfile(session.user.id);
       } else {
@@ -62,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
           await fetchUserProfile(session.user.id);
@@ -116,12 +123,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signUp(email: string, password: string): Promise<{ error: string | null }> {
-    if (!isSupabaseConfigured()) {
+    const isTestMode = localStorage.getItem("dayzero_test_mode") === "true";
+    
+    if (!isSupabaseConfigured() || isTestMode) {
+      const tier: SubscriptionTier = isTestMode ? "pro" : "free";
       const mockUser: User = {
         ...DEFAULT_FREE_USER,
         id: `mock-${Date.now()}`,
         email,
         emailHash: btoa(email).slice(0, 20),
+        subscriptionTier: tier,
+        maxCompanyFollows: tier === "free" ? 3 : 999,
+        hibpChecksRemaining: tier === "free" ? 1 : 999,
       };
       setUser(mockUser);
       localStorage.setItem("dayzero_user", JSON.stringify(mockUser));
@@ -129,7 +142,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const supabaseClient = getSupabaseClient();
+      if (!supabaseClient) {
+        return { error: "Supabase not configured" };
+      }
+      const { error } = await supabaseClient.auth.signUp({
         email,
         password,
       });
@@ -140,12 +157,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signIn(email: string, password: string): Promise<{ error: string | null }> {
-    if (!isSupabaseConfigured()) {
+    const isTestMode = localStorage.getItem("dayzero_test_mode") === "true";
+    
+    if (!isSupabaseConfigured() || isTestMode) {
+      const tier: SubscriptionTier = isTestMode ? "pro" : "free";
       const mockUser: User = {
         ...DEFAULT_FREE_USER,
         id: `mock-${Date.now()}`,
         email,
         emailHash: btoa(email).slice(0, 20),
+        subscriptionTier: tier,
+        maxCompanyFollows: tier === "free" ? 3 : 999,
+        hibpChecksRemaining: tier === "free" ? 1 : 999,
       };
       setUser(mockUser);
       localStorage.setItem("dayzero_user", JSON.stringify(mockUser));
@@ -153,7 +176,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const supabaseClient = getSupabaseClient();
+      if (!supabaseClient) {
+        return { error: "Supabase not configured" };
+      }
+      const { error } = await supabaseClient.auth.signInWithPassword({
         email,
         password,
       });
@@ -170,7 +197,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    await supabase.auth.signOut();
+    const supabaseClient = getSupabaseClient();
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut();
+    }
     setUser(DEFAULT_FREE_USER);
   }
 
@@ -198,14 +228,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(updatedUser);
     
     if (user.id && !user.id.startsWith("mock-") && !user.id.startsWith("anonymous")) {
-      await supabase
-        .from("users")
-        .update({
-          subscription_tier: tier,
-          max_company_follows: newMaxFollows,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
+      const supabaseClient = getSupabaseClient();
+      if (supabaseClient) {
+        await supabaseClient
+          .from("users")
+          .update({
+            subscription_tier: tier,
+            max_company_follows: newMaxFollows,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", user.id);
+      }
     }
     
     localStorage.setItem("dayzero_user", JSON.stringify(updatedUser));

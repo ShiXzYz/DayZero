@@ -24,15 +24,26 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const userId = uuidv4();
     
+    if (!supabase) {
+      return NextResponse.json({
+        userId: `mock-${userId}`,
+        email: email.toLowerCase().trim(),
+        message: "Account created (demo mode)",
+        isDemo: true,
+      });
+    }
+    
     const { error } = await supabase.from("users").insert({
       id: userId,
       email: email.toLowerCase().trim(),
-      followed_companies: [],
+      subscription_tier: "free",
+      max_company_follows: 3,
       notification_preferences: {
         email: true,
         push: false,
-        severity_threshold: "High",
-        industries: [],
+        severity_threshold: "Medium",
+        alert_new_incidents: true,
+        alert_risk_increase: true,
       },
     });
 
@@ -71,6 +82,11 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 });
+    }
+
     const { data: user, error: userError } = await supabase
       .from("users")
       .select("*")

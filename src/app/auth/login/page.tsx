@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Shield, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { Shield, Mail, Lock, Eye, EyeOff, ArrowRight, Zap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
@@ -14,6 +14,17 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testMode, setTestMode] = useState(false);
+
+  useEffect(() => {
+    setTestMode(localStorage.getItem("dayzero_test_mode") === "true");
+  }, []);
+
+  const toggleTestMode = () => {
+    const newValue = !testMode;
+    setTestMode(newValue);
+    localStorage.setItem("dayzero_test_mode", String(newValue));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +79,24 @@ export default function LoginPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-lg p-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={testMode}
+                  onChange={toggleTestMode}
+                  className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500"
+                />
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-amber-400" />
+                  <span className="text-sm text-slate-300">Test Mode (Auto-Pro subscription)</span>
+                </div>
+              </label>
+              <p className="text-xs text-slate-500 mt-2 ml-7">
+                Enable to automatically get Pro features for testing
+              </p>
+            </div>
+
             {error && (
               <div className="bg-red-900/20 border border-red-700/30 rounded-lg px-4 py-3 text-red-300 text-sm">
                 {error}
