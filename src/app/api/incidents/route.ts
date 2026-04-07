@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       isDemoData = aggregationResult.isMockData;
       sourceErrors = aggregationResult.sourceErrors;
 
-      if (refresh || !companyId) {
+      if ((refresh || !companyId) && !aggregationResult.isMockData) {
         for (const incident of aggregationResult.incidents.slice(0, 100)) {
           try {
             const { data: existing } = await supabase

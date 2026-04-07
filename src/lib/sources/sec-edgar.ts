@@ -1,6 +1,7 @@
 import { Incident, SECFiling, Severity } from "@/types";
 
 const SEC_EDGAR_BASE = "https://data.sec.gov/submissions";
+const SEC_TICKER_URL = "https://www.sec.gov/files/company_tickers.json";
 
 interface EDGARSubmissions {
   cik: string;
@@ -17,10 +18,16 @@ interface EDGARSubmissions {
   };
 }
 
+interface SECCompanyRecord {
+  cik_str: string;
+  ticker: string;
+  title: string;
+}
+
 const CYBERSECURITY_COMPANIES = [
-  "msft", "aapl", "googl", "amzn", "meta", "nvda", "orcl", "csco", "ibm", "intc",
-  "avgo", "txn", "qcom", "mu", "adi", "lrcx", "klac", "mntq", "snps", "cdns",
-  "panw", "ftnt", "crwd", "zs", "okta", "net", "crowdstrike"
+  "MSFT", "AAPL", "GOOGL", "AMZN", "META", "NVDA", "ORCL", "CSCO", "IBM", "INTC",
+  "AVGO", "TXN", "QCOM", "MU", "ADI", "LRCX", "KLAC", "SNPS", "CDNS",
+  "PANW", "FTNT", "CRWD", "ZS", "OKTA", "NET"
 ];
 
 const CYBERSECURITY_KEYWORDS = [
@@ -31,6 +38,58 @@ const CYBERSECURITY_KEYWORDS = [
 ];
 
 const USER_AGENT = "DayZero App contact@dayzero.app";
+let tickerLookupCache: Record<string, SECCompanyRecord> | null = null;
+
+async function loadTickerLookup(): Promise<Record<string, SECCompanyRecord>> {
+  if (tickerLookupCache) return tickerLookupCache;
+
+  const response = await fetch(SEC_TICKER_URL, {
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Accept": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Unable to load SEC ticker index: ${response.status}`);
+  }
+
+  const rawData = await response.json();
+  const values = Array.isArray(rawData)
+    ? rawData
+    : "data" in rawData
+      ? rawData.data
+      : Object.values(rawData);
+
+  tickerLookupCache = (values as SECCompanyRecord[]).reduce((map, record) => {
+    if (record && record.ticker) {
+      map[record.ticker.toUpperCase()] = record;
+    }
+    return map;
+  }, {} as Record<string, SECCompanyRecord>);
+
+  return tickerLookupCache;
+}
+
+async function getCompanyByTicker(ticker: string): Promise<{ name: string; cik: string } | null> {
+  try {
+    const lookup = await loadTickerLookup();
+    const normalizedTicker = ticker.trim().toUpperCase();
+    const record = lookup[normalizedTicker];
+
+    if (!record) {
+      return null;
+    }
+
+    return {
+      name: record.title,
+      cik: record.cik_str,
+    };
+  } catch (error) {
+    console.error("Error resolving ticker to CIK:", error);
+    return null;
+  }
+}
 
 export async function getCompanyFilings(cik: string): Promise<EDGARSubmissions | null> {
   try {
@@ -50,61 +109,54 @@ export async function getCompanyFilings(cik: string): Promise<EDGARSubmissions |
   }
 }
 
-export async function searchCompanyByTicker(ticker: string): Promise<{ name: string; cik: string } | null> {
+async function fetchFilingDocument(url: string): Promise<string> {
   try {
-    const response = await fetch(
-      `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&ticker=${ticker.toUpperCase()}&output=atom`,
-      {
-        headers: {
-          "User-Agent": USER_AGENT,
-          "Accept": "application/xml",
-        },
-      }
-    );
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml,text/plain",
+      },
+    });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return "";
+    }
 
-    const xml = await response.text();
-    const cikMatch = xml.match(/<cik>(\d+)<\/cik>/);
-    const nameMatch = xml.match(/<companyName>([^<]+)<\/companyName>/);
-
-    if (!cikMatch || !nameMatch) return null;
-
-    return {
-      name: nameMatch[1],
-      cik: cikMatch[1],
-    };
+    return await response.text();
   } catch (error) {
-    console.error("Error searching SEC EDGAR:", error);
-    return null;
+    console.error("Error fetching filing document:", error);
+    return "";
   }
+}
+
+function buildEdgarDocumentUrl(cik: string, accessionNumber: string, primaryDoc: string): string {
+  const accessionClean = accessionNumber.replace(/-/g, "");
+  const cikNumeric = String(parseInt(cik, 10));
+  return `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${accessionClean}/${primaryDoc}`;
 }
 
 export function parse8KFilings(filings: EDGARSubmissions, daysBack: number = 7): SECFiling[] {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysBack);
 
-  const eightKIndices = filings.filings.recent.form
+  return filings.filings.recent.form
     .map((form, index) => ({ form, index }))
-    .filter(item => item.form === "8-K" || item.form === "8-K/A");
-
-  return eightKIndices
+    .filter(item => item.form === "8-K" || item.form === "8-K/A")
     .filter(item => {
       const filingDate = new Date(filings.filings.recent.filingDate[item.index]);
       return filingDate >= cutoffDate;
     })
     .map(item => {
       const accessionNumber = filings.filings.recent.accessionNumber[item.index];
-      const accessionClean = accessionNumber.replace(/-/g, "");
-      const primaryDoc = filings.filings.recent.primaryDocument[item.index];
+      const primaryDoc = filings.filings.recent.primaryDocument[item.index] || "";
 
       return {
         accessionNumber,
         companyName: filings.name,
         ticker: filings.ticker,
-        formType: filings.filings.recent.form[item.index],
+        formType: item.form,
         filedDate: filings.filings.recent.filingDate[item.index],
-        documentUrl: `https://www.sec.gov/Archives/edgar/data/${parseInt(filings.cik, 10)}/${accessionClean}/${primaryDoc}`,
+        documentUrl: buildEdgarDocumentUrl(filings.cik, accessionNumber, primaryDoc),
         items: [],
         content: "",
       };
@@ -113,18 +165,30 @@ export function parse8KFilings(filings: EDGARSubmissions, daysBack: number = 7):
 
 export async function fetchRecent8KFilings(daysBack: number = 7): Promise<SECFiling[]> {
   const allFilings: SECFiling[] = [];
-  
-  for (const ticker of CYBERSECURITY_COMPANIES.slice(0, 15)) {
+
+  for (const ticker of CYBERSECURITY_COMPANIES) {
     try {
-      const company = await searchCompanyByTicker(ticker);
-      if (!company) continue;
+      const company = await getCompanyByTicker(ticker);
+      if (!company) {
+        continue;
+      }
 
       const submissions = await getCompanyFilings(company.cik);
-      if (!submissions) continue;
+      if (!submissions) {
+        continue;
+      }
 
       const filings = parse8KFilings(submissions, daysBack);
-      allFilings.push(...filings);
+      if (filings.length === 0) {
+        continue;
+      }
 
+      for (const filing of filings) {
+        filing.content = await fetchFilingDocument(filing.documentUrl);
+      }
+
+      const cybersecurityFilings = filings.filter(isCybersecurityFiling);
+      allFilings.push(...cybersecurityFilings);
       await new Promise(resolve => setTimeout(resolve, 250));
     } catch (error) {
       console.error(`Error fetching filings for ${ticker}:`, error);
@@ -137,7 +201,7 @@ export async function fetchRecent8KFilings(daysBack: number = 7): Promise<SECFil
 }
 
 export function isCybersecurityFiling(filing: SECFiling): boolean {
-  const searchText = `${filing.companyName} ${filing.formType} ${filing.accessionNumber}`.toLowerCase();
+  const searchText = `${filing.companyName} ${filing.formType} ${filing.accessionNumber} ${filing.content}`.toLowerCase();
   return CYBERSECURITY_KEYWORDS.some(keyword => searchText.includes(keyword));
 }
 
@@ -145,9 +209,9 @@ export function filingToIncident(filing: SECFiling, rawContent?: string): Partia
   const determineSeverity = (content: string): Severity => {
     const criticalKeywords = ["ransomware", "data breach", "unauthorized access", "extraction", "exfiltration", "material breach", "substantial data", "significant unauthorized"];
     const highKeywords = ["cybersecurity incident", "incident response", "security event", "vulnerability", "data compromise", "privacy incident"];
-    
+
     const lowerContent = content.toLowerCase();
-    
+
     if (criticalKeywords.some(k => lowerContent.includes(k))) return "Critical";
     if (highKeywords.some(k => lowerContent.includes(k))) return "High";
     return "Medium";
@@ -155,7 +219,7 @@ export function filingToIncident(filing: SECFiling, rawContent?: string): Partia
 
   const content = rawContent || filing.content;
   const isCyberFiling = isCybersecurityFiling(filing);
-  
+
   return {
     title: `${filing.companyName} - SEC ${filing.formType}`,
     summary: isCyberFiling 
