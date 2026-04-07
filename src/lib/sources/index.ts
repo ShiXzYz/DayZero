@@ -20,8 +20,8 @@ export const MOCK_INCIDENTS: Incident[] = [
     status: "investigating",
     sources: [{
       type: "sec_filing",
-      sourceName: "SEC EDGAR",
-      url: "https://www.sec.gov/cgi-bin/browse-edging?action=getcompany",
+      sourceName: "Demo SEC Filing",
+      url: "https://www.sec.gov/edgar/search/",
       confidence: 0.95,
       discoveredAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     }],
@@ -116,8 +116,8 @@ export const MOCK_INCIDENTS: Incident[] = [
     status: "investigating",
     sources: [{
       type: "sec_filing",
-      sourceName: "SEC EDGAR",
-      url: "https://www.sec.gov/cgi-bin/browse-edging",
+      sourceName: "Demo SEC Filing",
+      url: "https://www.sec.gov/edgar/search/",
       confidence: 0.95,
       discoveredAt: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
     }],
@@ -180,7 +180,12 @@ export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Pr
 
 async function fetchSECIncidents(): Promise<Incident[]> {
   try {
-    const filings = await fetchRecent8KFilings(7);
+    let filings = await fetchRecent8KFilings(7);
+
+    if (filings.length === 0) {
+      console.warn("No 8-K filings found in the last 7 days; expanding search window to 30 days.");
+      filings = await fetchRecent8KFilings(30);
+    }
     
     return filings
       .filter(filing => isCybersecurityFiling(filing))
