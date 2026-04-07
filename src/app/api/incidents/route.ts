@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const severity = searchParams.get("severity");
     const status = searchParams.get("status");
     const source = searchParams.get("source");
+    const companyName = searchParams.get("companyName");
     const limit = parseInt(searchParams.get("limit") || "50");
     const refresh = searchParams.get("refresh") === "true";
     const clearCacheParam = searchParams.get("clearCache") === "true";
@@ -16,15 +17,17 @@ export async function GET(request: NextRequest) {
       clearCache();
     }
 
-    console.log("=== /api/incidents ===");
-    console.log(`Cache stats:`, getCacheStats());
-
     const aggregationResult = await aggregateIncidents();
     
-    console.log(`Found ${aggregationResult.incidents.length} incidents`);
-    console.log(`isMockData: ${aggregationResult.isMockData}`);
-
     let incidents = aggregationResult.incidents;
+
+    if (companyName) {
+      const searchTerm = companyName.toLowerCase();
+      incidents = incidents.filter(i => 
+        i.companyName.toLowerCase().includes(searchTerm) ||
+        i.title.toLowerCase().includes(searchTerm)
+      );
+    }
 
     if (severity) {
       incidents = incidents.filter(i => i.severity === severity);

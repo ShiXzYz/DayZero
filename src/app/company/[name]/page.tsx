@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Incident } from "@/types";
 
 interface CompanyPageProps {
-  params: {
+  params: Promise<{
     name: string;
-  };
+  }>;
 }
 
 async function fetchCompanyIncidents(companyName: string): Promise<Incident[]> {
@@ -25,7 +25,8 @@ async function fetchCompanyIncidents(companyName: string): Promise<Incident[]> {
 }
 
 export default async function CompanyPage({ params }: CompanyPageProps) {
-  const companyName = params.name;
+  const { name } = await params;
+  const companyName = decodeURIComponent(name);
   const incidents = await fetchCompanyIncidents(companyName);
 
   return (

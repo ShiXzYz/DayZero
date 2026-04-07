@@ -52,11 +52,16 @@ const SOURCE_ICONS: Record<SourceType, React.ReactNode> = {
 
 
 
+const INITIAL_LIMIT = 30;
+const LOAD_MORE_COUNT = 30;
+
 export default function FeedPage() {
   const { user, signOut } = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [filteredIncidents, setFilteredIncidents] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [displayedCount, setDisplayedCount] = useState(INITIAL_LIMIT);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState<Severity | "All">("All");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -66,6 +71,8 @@ export default function FeedPage() {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const isAuthenticated = user && user.email;
+  const displayedIncidents = filteredIncidents.slice(0, displayedCount);
+  const hasMore = filteredIncidents.length > displayedCount;
 
   const fetchIncidents = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
@@ -79,6 +86,7 @@ export default function FeedPage() {
 
       if (data.incidents) {
         setIncidents(data.incidents);
+        setDisplayedCount(INITIAL_LIMIT);
         setLastRefresh(new Date());
       }
       if (data.isDemoData !== undefined) {
@@ -93,6 +101,10 @@ export default function FeedPage() {
       setIsLoading(false);
     }
   }, []);
+
+  const loadMore = () => {
+    setDisplayedCount(prev => prev + LOAD_MORE_COUNT);
+  };
 
   useEffect(() => {
     fetchIncidents();
@@ -338,7 +350,7 @@ export default function FeedPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {filteredIncidents.map((incident, idx) => (
+            {displayedIncidents.map((incident, idx) => (
               <motion.div
                 key={incident.id}
                 initial={{ opacity: 0, y: 12 }}
@@ -475,6 +487,27 @@ export default function FeedPage() {
                 </Card>
               </motion.div>
             ))}
+            
+            {hasMore && (
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                  className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition-colors flex items-center gap-2"
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-slate-400/30 border-t-slate-400 rounded-full animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      Show More ({Math.min(LOAD_MORE_COUNT, filteredIncidents.length - displayedCount)} more)
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
