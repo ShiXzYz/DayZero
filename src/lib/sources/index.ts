@@ -1,5 +1,5 @@
 import { Incident } from "@/types";
-import { fetchRecent8KFilings } from "./sec-edgar";
+import { fetchRecent8KFilings, isCybersecurityFiling } from "./sec-edgar";
 import { fetchAllNewsFeeds } from "./news";
 
 export interface SourceConfig {
@@ -7,60 +7,209 @@ export interface SourceConfig {
   news: boolean;
 }
 
-export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Promise<Incident[]> {
+export const MOCK_INCIDENTS: Incident[] = [
+  {
+    id: "mock-1",
+    companyId: "",
+    companyName: "TechCorp Inc.",
+    companyDomain: "techcorp.com",
+    title: "Data Breach Affects 2.5 Million Users",
+    summary: "TechCorp Inc. disclosed a data breach affecting approximately 2.5 million users. The breach exposed names, email addresses, and hashed passwords.",
+    description: "TechCorp Inc. filed an 8-K with the SEC disclosing a material cybersecurity incident. The company discovered unauthorized access to user data on March 28, 2026.",
+    severity: "High",
+    status: "investigating",
+    sources: [{
+      type: "sec_filing",
+      sourceName: "SEC EDGAR",
+      url: "https://www.sec.gov/cgi-bin/browse-edging?action=getcompany",
+      confidence: 0.95,
+      discoveredAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    }],
+    exposedData: [
+      { category: "credentials", types: ["Email Addresses", "Password Hashes"] },
+      { category: "personal", types: ["Names"] },
+    ],
+    discoveredAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+    reportedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "mock-2",
+    companyId: "",
+    companyName: "GlobalBank",
+    companyDomain: "globalbank.com",
+    title: "Ransomware Attack Disrupts Operations",
+    summary: "GlobalBank experienced a ransomware attack that disrupted banking operations across 12 states. No customer data was confirmed compromised.",
+    description: "GlobalBank disclosed a ransomware incident that affected internal systems. The attack was detected on April 1, 2026, and the company is working with cybersecurity firms to restore systems.",
+    severity: "Critical",
+    status: "investigating",
+    sources: [{
+      type: "news",
+      sourceName: "BleepingComputer",
+      url: "https://www.bleepingcomputer.com/news/security/",
+      confidence: 0.85,
+      discoveredAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    }],
+    exposedData: [],
+    discoveredAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+    reportedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "mock-3",
+    companyId: "",
+    companyName: "HealthFirst Medical",
+    companyDomain: "healthfirst.com",
+    title: "Patient Data Exposed in Third-Party Breach",
+    summary: "HealthFirst Medical notified patients that their data may have been exposed through a breach at a third-party billing vendor.",
+    description: "HealthFirst Medical discovered that a security incident at their billing processing vendor may have exposed patient names, dates of birth, and insurance information for approximately 450,000 patients.",
+    severity: "High",
+    status: "investigating",
+    sources: [{
+      type: "news",
+      sourceName: "DataBreaches.net",
+      url: "https://www.databreaches.net/",
+      confidence: 0.8,
+      discoveredAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+    }],
+    exposedData: [
+      { category: "personal", types: ["Names", "Dates of Birth"] },
+      { category: "medical", types: ["Insurance Information"] },
+    ],
+    discoveredAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+    reportedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "mock-4",
+    companyId: "",
+    companyName: "CloudServe",
+    companyDomain: "cloudserve.io",
+    title: "API Vulnerability Exposed Customer Data",
+    summary: "CloudServe patched a critical API vulnerability that could have allowed attackers to access customer data without authentication.",
+    description: "A security researcher discovered and responsibly disclosed an API vulnerability in CloudServe's platform that could have exposed sensitive customer information. The company patched the vulnerability within 24 hours of notification.",
+    severity: "Medium",
+    status: "resolved",
+    sources: [{
+      type: "news",
+      sourceName: "The Hacker News",
+      url: "https://thehackernews.com/",
+      confidence: 0.9,
+      discoveredAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    }],
+    exposedData: [
+      { category: "corporate", types: ["API Keys", "Customer Data"] },
+    ],
+    discoveredAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+    reportedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "mock-5",
+    companyId: "",
+    companyName: "RetailMax",
+    companyDomain: "retailmax.com",
+    title: "POS Malware Found at 50 Store Locations",
+    summary: "RetailMax discovered point-of-sale malware at 50 store locations. Payment card data may have been compromised over a 3-month period.",
+    description: "RetailMax disclosed that their security team discovered POS malware at 50 store locations. The malware was active from January to March 2026, potentially capturing payment card data.",
+    severity: "Critical",
+    status: "investigating",
+    sources: [{
+      type: "sec_filing",
+      sourceName: "SEC EDGAR",
+      url: "https://www.sec.gov/cgi-bin/browse-edging",
+      confidence: 0.95,
+      discoveredAt: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
+    }],
+    exposedData: [
+      { category: "financial", types: ["Payment Card Numbers", "CVV Codes"] },
+      { category: "personal", types: ["Names"] },
+    ],
+    breachDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    discoveredAt: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+    reportedAt: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
+export interface AggregationResult {
+  incidents: Incident[];
+  isMockData: boolean;
+  sourceErrors: string[];
+}
+
+export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Promise<AggregationResult> {
   const {
     secEdgar = true,
     news = true,
   } = config;
 
   const incidents: Incident[] = [];
+  const sourceErrors: string[] = [];
 
   const results = await Promise.allSettled([
     secEdgar ? fetchSECIncidents() : Promise.resolve([]),
     news ? fetchNewsIncidents() : Promise.resolve([]),
   ]);
 
-  for (const result of results) {
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
     if (result.status === "fulfilled") {
       incidents.push(...result.value);
+    } else {
+      sourceErrors.push(`Source ${i === 0 ? "SEC EDGAR" : "News"} failed: ${result.reason}`);
     }
   }
 
-  return incidents.sort(
-    (a, b) => new Date(b.discoveredAt).getTime() - new Date(a.discoveredAt).getTime()
-  );
+  if (incidents.length === 0) {
+    return {
+      incidents: MOCK_INCIDENTS,
+      isMockData: true,
+      sourceErrors: ["No live data available. Showing demo incidents."],
+    };
+  }
+
+  return {
+    incidents: incidents.sort(
+      (a, b) => new Date(b.discoveredAt).getTime() - new Date(a.discoveredAt).getTime()
+    ),
+    isMockData: false,
+    sourceErrors,
+  };
 }
 
 async function fetchSECIncidents(): Promise<Incident[]> {
   try {
-    const filings = await fetchRecent8KFilings();
+    const filings = await fetchRecent8KFilings(7);
     
-    return filings.map(filing => ({
-      id: `sec-${filing.accessionNumber}`,
-      companyId: "",
-      companyName: filing.companyName,
-      companyDomain: `${filing.ticker.toLowerCase()}.com`,
-      title: `SEC 8-K Filing: ${filing.companyName}`,
-      summary: `${filing.formType} filed on ${filing.filedDate}`,
-      description: "Material cybersecurity incident disclosure filed with SEC under new 4-day disclosure rules.",
-      severity: determineSeverityFromSEC(filing.content || filing.formType),
-      status: "investigating" as const,
-      sources: [{
-        type: "sec_filing" as const,
-        sourceName: "SEC EDGAR",
-        url: filing.documentUrl,
-        confidence: 0.95,
+    return filings
+      .filter(filing => isCybersecurityFiling(filing))
+      .map(filing => ({
+        id: `sec-${filing.accessionNumber}`,
+        companyId: "",
+        companyName: filing.companyName,
+        companyDomain: `${filing.ticker.toLowerCase()}.com`,
+        title: `${filing.companyName} - SEC ${filing.formType}`,
+        summary: "Cybersecurity incident disclosure filed with SEC",
+        description: "Material cybersecurity incident disclosure filed with SEC under new 4-day disclosure rules.",
+        severity: determineSeverityFromSEC(filing.content || filing.formType),
+        status: "investigating" as const,
+        sources: [{
+          type: "sec_filing" as const,
+          sourceName: "SEC EDGAR",
+          url: filing.documentUrl,
+          confidence: 0.95,
+          discoveredAt: filing.filedDate,
+        }],
+        exposedData: [],
+        breachDate: filing.filedDate,
         discoveredAt: filing.filedDate,
-      }],
-      exposedData: [],
-      breachDate: filing.filedDate,
-      discoveredAt: filing.filedDate,
-      reportedAt: filing.filedDate,
-      updatedAt: new Date().toISOString(),
-    }));
+        reportedAt: filing.filedDate,
+        updatedAt: new Date().toISOString(),
+      }));
   } catch (error) {
     console.error("Error fetching SEC incidents:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -106,7 +255,7 @@ async function fetchNewsIncidents(): Promise<Incident[]> {
     }));
   } catch (error) {
     console.error("Error fetching news incidents:", error);
-    return [];
+    throw error;
   }
 }
 

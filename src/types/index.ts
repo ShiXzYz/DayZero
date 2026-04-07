@@ -1,6 +1,7 @@
 export type Severity = "Critical" | "High" | "Medium" | "Low";
 export type SourceType = "sec_filing" | "dark_web" | "hibp" | "news" | "manual";
 export type IncidentStatus = "active" | "investigating" | "resolved" | "false_positive";
+export type SubscriptionTier = "free" | "pro" | "enterprise";
 
 export interface Company {
   id: string;
@@ -58,6 +59,11 @@ export interface User {
   updatedAt: string;
   notificationPreferences: NotificationPreferences;
   fcmToken?: string;
+  subscriptionTier: SubscriptionTier;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  maxCompanyFollows: number;
+  hibpChecksRemaining?: number;
 }
 
 export interface NotificationPreferences {

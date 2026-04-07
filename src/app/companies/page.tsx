@@ -15,8 +15,8 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Company, Follow } from "@/types";
-
-const STORAGE_KEY = "dayzero_user";
+import { useAuth } from "@/contexts/AuthContext";
+import { UpgradePrompt, FreeLimitBadge } from "@/components/UpgradePrompt";
 
 const POPULAR_COMPANIES: Company[] = [
   { id: "1", name: "Microsoft", domain: "microsoft.com", industry: "Technology", isPublic: true, createdAt: "", updatedAt: "" },
@@ -41,25 +41,22 @@ const INDUSTRIES = [
 ];
 
 export default function CompaniesPage() {
-  const [userId, setUserId] = useState<string | null>(null);
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("All Industries");
   const [companies] = useState<Company[]>(POPULAR_COMPANIES);
   const [followedCompanies, setFollowedCompanies] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
+  const [showLimitUpgrade, setShowLimitUpgrade] = useState(false);
+
+  const maxFollows = user?.maxCompanyFollows || 3;
+  const isPro = user?.subscriptionTier !== "free";
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const userData = JSON.parse(stored);
-        setUserId(userData.userId);
-        fetchFollows(userData.userId);
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-      }
+    if (user?.id && !user.id.startsWith("anonymous")) {
+      fetchFollows(user.id);
     }
-  }, []);
+  }, [user?.id]);
 
   const fetchFollows = async (uid: string) => {
     try {
@@ -74,16 +71,21 @@ export default function CompaniesPage() {
   };
 
   const handleFollow = async (company: Company) => {
-    if (!userId) {
+    if (!user?.id || user.id.startsWith("anonymous")) {
+      return;
+    }
+
+    const isFollowed = followedCompanies.has(company.id);
+
+    if (!isFollowed && !isPro && followedCompanies.size >= maxFollows) {
+      setShowLimitUpgrade(true);
       return;
     }
 
     setIsLoading(true);
     try {
-      const isFollowed = followedCompanies.has(company.id);
-      
       if (isFollowed) {
-        await fetch(`/api/follow?userId=${userId}&companyId=${company.id}`, {
+        await fetch(`/api/follow?userId=${user.id}&companyId=${company.id}`, {
           method: "DELETE",
         });
         setFollowedCompanies(prev => {
@@ -96,7 +98,7 @@ export default function CompaniesPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            userId,
+            userId: user.id,
             companyId: company.id,
             companyName: company.name,
           }),
@@ -131,6 +133,7 @@ export default function CompaniesPage() {
             <Link href="/" className="hover:text-white transition-colors">Feed</Link>
             <Link href="/companies" className="text-white transition-colors">Companies</Link>
             <Link href="/alerts" className="hover:text-white transition-colors">Alerts</Link>
+            <Link href="/check-exposure" className="hover:text-white transition-colors">Check Exposure</Link>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/alerts">
@@ -152,7 +155,26 @@ export default function CompaniesPage() {
           <p className="mt-2 text-slate-400">
             Follow companies to get instant alerts when they appear in security incidents.
           </p>
+          {!isPro && (
+            <div className="mt-3 flex items-center gap-3">
+              <FreeLimitBadge current={followedCompanies.size} max={maxFollows} />
+              <span className="text-xs text-slate-500">
+                {followedCompanies.size >= maxFollows 
+                  ? "Limit reached. Upgrade to follow more." 
+                  : `${maxFollows - followedCompanies.size} follows remaining`}
+              </span>
+            </div>
+          )}
         </motion.div>
+
+        {showLimitUpgrade && (
+          <UpgradePrompt
+            feature="company follows"
+            limit={maxFollows}
+            currentUsage={followedCompanies.size}
+            onDismiss={() => setShowLimitUpgrade(false)}
+          />
+        )}
 
         <div className="mb-6 space-y-3">
           <div className="relative">
@@ -229,7 +251,7 @@ export default function CompaniesPage() {
                     <div className="mt-4 flex items-center gap-2">
                       <Button
                         onClick={() => handleFollow(company)}
-                        disabled={isLoading}
+                        disabled={isLoading || (!isPro && followedCompanies.size >= maxFollows && !followedCompanies.has(company.id))}
                         variant={followedCompanies.has(company.id) ? "outline" : "default"}
                         className={`flex-1 rounded-xl text-xs ${
                           followedCompanies.has(company.id)

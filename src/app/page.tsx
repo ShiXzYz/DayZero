@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,11 +17,16 @@ import {
   AlertTriangle,
   Globe,
   FileText,
+  Info,
+  User,
+  LogOut,
+  Crown,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Incident, Severity, SourceType } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
 
-const STORAGE_KEY = "dayzero_user";
+const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 const SEVERITY_COLORS: Record<Severity, string> = {
   Critical: "bg-red-500/20 text-red-300 border-red-500/30",
@@ -48,31 +53,21 @@ const SOURCE_ICONS: Record<SourceType, React.ReactNode> = {
 
 
 export default function FeedPage() {
+  const { user, signOut } = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [filteredIncidents, setFilteredIncidents] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState<Severity | "All">("All");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [isDemoData, setIsDemoData] = useState(false);
+  const [sourceErrors, setSourceErrors] = useState<string[]>([]);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        JSON.parse(stored);
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    }
-    fetchIncidents();
-  }, []);
+  const isAuthenticated = user && user.email && !user.id.startsWith("anonymous");
 
-  useEffect(() => {
-    filterIncidents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incidents, query, selectedSeverity]);
-
-  const fetchIncidents = async (forceRefresh = false) => {
+  const fetchIncidents = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -86,12 +81,36 @@ export default function FeedPage() {
         setIncidents(data.incidents);
         setLastRefresh(new Date());
       }
+      if (data.isDemoData !== undefined) {
+        setIsDemoData(data.isDemoData);
+      }
+      if (data.sourceErrors) {
+        setSourceErrors(data.sourceErrors);
+      }
     } catch (error) {
       console.error("Error fetching incidents:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchIncidents();
+    
+    intervalRef.current = setInterval(() => {
+      fetchIncidents();
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [fetchIncidents]);
+
+  useEffect(() => {
+    filterIncidents();
+  }, [incidents, query, selectedSeverity]);
 
   const filterIncidents = () => {
     let filtered = [...incidents];
@@ -133,13 +152,57 @@ export default function FeedPage() {
             <Link href="/companies" className="hover:text-white transition-colors">Companies</Link>
             <Link href="/alerts" className="hover:text-white transition-colors">Alerts</Link>
             <Link href="/check-exposure" className="hover:text-white transition-colors">Check Exposure</Link>
+            {user?.subscriptionTier !== "free" && (
+              <Link href="/settings/subscription" className="hover:text-white transition-colors text-amber-400">Pro</Link>
+            )}
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/alerts">
-              <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs px-4">
-                <Bell className="h-3.5 w-3.5 mr-1.5" /> Get Alerts
-              </Button>
-            </Link>
+            {isAuthenticated ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
+                >
+                  <User className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-300 max-w-[120px] truncate">{user?.email?.split("@")[0]}</span>
+                  {user?.subscriptionTier !== "free" && (
+                    <Crown className="h-3.5 w-3.5 text-amber-400" />
+                  )}
+                </button>
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-lg py-1">
+                    <Link
+                      href="/settings/subscription"
+                      className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <Crown className="inline h-3.5 w-3.5 mr-2 text-amber-400" />
+                      {user?.subscriptionTier === "pro" ? "Pro Plan" : user?.subscriptionTier === "enterprise" ? "Enterprise Plan" : "Upgrade to Pro"}
+                    </Link>
+                    <button
+                      onClick={() => { signOut(); setShowUserMenu(false); }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 flex items-center gap-2"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link href="/auth/login">
+                  <Button size="sm" variant="ghost" className="rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 text-xs px-3">
+                    Sign in
+                  </Button>
+                </Link>
+                <Link href="/auth/signup">
+                  <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs px-4">
+                    Sign up
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </nav>
@@ -158,6 +221,35 @@ export default function FeedPage() {
             from SEC filings, dark web intelligence, and security news.
           </p>
         </motion.div>
+
+        {isDemoData && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-amber-900/20 border border-amber-700/30 rounded-xl px-4 py-3 mb-6 flex items-center gap-3"
+          >
+            <Info className="h-4 w-4 text-amber-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-amber-300 font-medium">Demo Data</p>
+              <p className="text-xs text-amber-400/70">
+                No live data available. Showing sample incidents for demonstration.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {sourceErrors.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-900/20 border border-red-700/30 rounded-xl px-4 py-3 mb-6"
+          >
+            <p className="text-sm text-red-300 font-medium mb-1">Data Source Errors</p>
+            {sourceErrors.map((error, i) => (
+              <p key={i} className="text-xs text-red-400/70">{error}</p>
+            ))}
+          </motion.div>
+        )}
 
         {liveIncidents.length > 0 && (
           <motion.div
