@@ -121,7 +121,13 @@
     @apply border-border outline-ring/50;
   }
   html, body {
-    @apply bg-slate-950 text-slate-100;
+    background-color: #0a0f1e;
+    @apply text-slate-100;
     color-scheme: dark;
   }
+  /* Subtle scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
 }
