@@ -74,11 +74,23 @@ function stripHtml(html: string): string {
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/<[^>]+>/g, " ")
+    // Named entities
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "–")
+    .replace(/&ldquo;/g, '"')
+    .replace(/&rdquo;/g, '"')
+    .replace(/&lsquo;/g, "'")
+    .replace(/&rsquo;/g, "'")
+    // Numeric decimal entities (e.g. &#8220; &#160;)
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    // Numeric hex entities (e.g. &#x201C;)
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)))
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -158,20 +170,54 @@ const EXPOSED_DATA_PATTERNS: { regex: RegExp; label: string }[] = [
   { regex: /customer data|user data|client data/i, label: "customer data" },
 ];
 
+// Boilerplate patterns found in SEC form headers/footers — skip any sentence matching these
+const BOILERPLATE_PATTERNS = [
+  /emerging growth company/i,
+  /smaller reporting company/i,
+  /accelerated filer/i,
+  /check mark/i,
+  /exchange act/i,
+  /section \d+\([a-z]\)/i,
+  /transition period/i,
+  /pursuant to/i,
+  /incorporated by reference/i,
+  /form 8-k/i,
+  /commission file/i,
+  /state of incorporation/i,
+  /internal revenue/i,
+  /registrant/i,
+  /dated:/i,
+  /by:\s*\/s\//i,
+  /vice president/i,
+  /general counsel/i,
+  /chief (executive|financial|legal|operating)/i,
+  /^\s*item\s+\d+\.\d+\s*$/i,
+  /departure of directors/i,
+  /election of directors/i,
+  /compensatory arrangements/i,
+  /^[\s\d\.\-\/]+$/,
+];
+
+function isBoilerplate(sentence: string): boolean {
+  return BOILERPLATE_PATTERNS.some(re => re.test(sentence));
+}
+
 /**
  * Extract the most relevant 1-2 sentences from the filing text.
- * Splits on sentence boundaries and scores each sentence by how many
- * security-relevant keywords it contains, then returns the top scorer(s).
+ * Finds the Item section body text, skips all boilerplate, and scores
+ * remaining sentences by security/event relevance.
  */
 function extractKeySentences(content: string, maxSentences: number = 2): string {
-  // Work with the first ~8000 chars — the material event section is always near the top
-  const chunk = content.slice(0, 8000);
+  // Try to jump straight to the Item body — find the first Item X.XX header
+  // and grab text after it (up to 6000 chars from that point)
+  const itemMatch = content.match(/item\s+\d+\.\d+[^\n]{0,80}\n?([\s\S]{200,6000})/i);
+  const chunk = itemMatch ? itemMatch[1] : content.slice(0, 8000);
 
-  // Split on sentence-ending punctuation followed by whitespace/capital letter
+  // Split on sentence-ending punctuation followed by whitespace + capital letter
   const sentences = chunk
     .split(/(?<=[.!?])\s+(?=[A-Z"(])/)
     .map(s => s.replace(/\s+/g, " ").trim())
-    .filter(s => s.length > 40 && s.length < 600);
+    .filter(s => s.length > 50 && s.length < 700 && !isBoilerplate(s));
 
   if (sentences.length === 0) return "";
 
@@ -186,19 +232,20 @@ function extractKeySentences(content: string, maxSentences: number = 2): string 
     /investigate|detect|discover|notif/i,
     /material|impact|effect|significant/i,
     /remediat|contain|restor|recover/i,
+    /acqui|merger|agreement|transaction/i,
+    /appoint|elect|resign|terminat/i,
   ];
 
-  const scored = sentences.map(s => {
-    let score = SCORE_TERMS.reduce((acc, re) => acc + (re.test(s) ? 1 : 0), 0);
-    // Bonus for Item 8.01 or Item 1.05 language (the cybersecurity/material event items)
-    if (/item\s+(8\.01|1\.05)/i.test(s)) score += 3;
-    return { s, score };
-  });
+  const scored = sentences.map(s => ({
+    s,
+    score: SCORE_TERMS.reduce((acc, re) => acc + (re.test(s) ? 1 : 0), 0),
+  }));
 
   scored.sort((a, b) => b.score - a.score);
 
-  // Take top sentences, then re-order them by their original position for readability
-  const topIndices = scored.slice(0, maxSentences).map(({ s }) => sentences.indexOf(s));
+  // Re-order winners by original position so the summary reads naturally
+  const winners = scored.slice(0, maxSentences);
+  const topIndices = winners.map(({ s }) => sentences.indexOf(s));
   topIndices.sort((a, b) => a - b);
 
   return topIndices.map(i => sentences[i]).join(" ").trim();
