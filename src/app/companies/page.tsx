@@ -42,62 +42,39 @@ export default function CompaniesPage() {
   const [totalCompanies, setTotalCompanies] = useState(0);
 
   const maxFollows = user?.maxCompanyFollows || 3;
-  const isPro = user?.subscriptionTier !== "free";
+  const isPro = user?.subscriptionTier === "pro";
 
   useEffect(() => {
-    if (loading) {
-      console.log("[Companies] Auth still loading, waiting...");
-      return;
-    }
-    
-    console.log("[Companies] User:", { id: user?.id, email: user?.email, tier: user?.subscriptionTier });
-    
-    if (user?.id && user?.email) {
-      console.log("[Companies] Fetching follows for user:", user.id);
-      fetchFollows(user.id);
-    } else {
-      console.log("[Companies] User not authenticated");
-      setFollowedCompanies(new Set());
-    }
+    if (loading) return;
+
+    // Fire companies + follows in parallel as soon as auth state is known
+    const companiesPromise = fetch("/api/companies?limit=100")
+      .then(r => r.json())
+      .then(data => {
+        if (data.companies) {
+          setCompanies(data.companies);
+          setTotalCompanies(data.totalCount || data.companies.length);
+        }
+      })
+      .catch(err => console.error("Error fetching companies:", err));
+
+    const followsPromise = user?.id && user?.email
+      ? fetch(`/api/follow?userId=${user.id}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.follows) {
+              setFollowedCompanies(new Set(data.follows.map((f: Follow) => f.companyId)));
+            }
+            if (data.error) setError(data.error);
+          })
+          .catch(err => {
+            console.error("Error fetching follows:", err);
+            setError("Failed to load followed companies");
+          })
+      : Promise.resolve();
+
+    Promise.all([companiesPromise, followsPromise]).finally(() => setIsLoading(false));
   }, [user?.id, user?.email, loading]);
-
-  useEffect(() => {
-    fetchCompanies();
-  }, []);
-
-  const fetchCompanies = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch("/api/companies?limit=100");
-      const data = await res.json();
-      if (data.companies) {
-        setCompanies(data.companies);
-        setTotalCompanies(data.totalCount || data.companies.length);
-      }
-    } catch (error) {
-      console.error("Error fetching companies:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchFollows = async (uid: string) => {
-    setError(null);
-    try {
-      const res = await fetch(`/api/follow?userId=${uid}`);
-      const data = await res.json();
-      if (data.follows) {
-        setFollowedCompanies(new Set(data.follows.map((f: Follow) => f.companyId)));
-      }
-      if (data.error) {
-        console.warn("[Companies] Error fetching follows:", data.error);
-        setError(data.error);
-      }
-    } catch (error) {
-      console.error("[Companies] Error fetching follows:", error);
-      setError("Failed to load followed companies");
-    }
-  };
 
   const handleFollow = async (company: Company) => {
     console.log("[Companies] handleFollow called:", { userId: user?.id, company: company.name });
@@ -204,7 +181,12 @@ export default function CompaniesPage() {
               </p>
             </div>
             <button
-              onClick={fetchCompanies}
+              onClick={() => {
+                setIsLoading(true);
+                fetch("/api/companies?limit=100").then(r => r.json()).then(data => {
+                  if (data.companies) { setCompanies(data.companies); setTotalCompanies(data.totalCount || data.companies.length); }
+                }).finally(() => setIsLoading(false));
+              }}
               disabled={isLoading}
               className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
             >

@@ -60,7 +60,7 @@ export default function SubscriptionPage() {
           <p className="text-slate-400 max-w-xl mx-auto">
             Get enhanced protection with real-time alerts, unlimited monitoring, and one-tap incident response.
           </p>
-          {user?.subscriptionTier !== "free" && (
+          {user?.subscriptionTier === "pro" && (
             <div className="mt-4 inline-flex items-center gap-2 bg-amber-500/20 border border-amber-500/30 rounded-full px-4 py-1.5">
               <Crown className="h-4 w-4 text-amber-400" />
               <span className="text-sm text-amber-300">

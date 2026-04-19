@@ -199,27 +199,125 @@ export interface AggregationResult {
   sourceErrors: string[];
 }
 
-export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Promise<AggregationResult> {
-  const {
-    secEdgar = true,
-    news = true,
-  } = config;
+// How old DB incidents can be before we background-refresh (15 minutes)
+const DB_STALE_MS = 15 * 60 * 1000;
 
+async function fetchFromDatabase(): Promise<Incident[] | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from("incidents")
+      .select("*")
+      .order("discovered_at", { ascending: false })
+      .limit(100);
+
+    if (error || !data || data.length === 0) return null;
+
+    return data.map(row => ({
+      id: row.id,
+      companyId: row.company_id || "",
+      companyName: row.company_name,
+      companyDomain: row.company_domain || "",
+      title: row.title,
+      summary: row.summary,
+      description: row.description,
+      severity: row.severity,
+      status: row.status,
+      sources: row.sources || [],
+      exposedData: row.exposed_data || [],
+      breachDate: row.breach_date,
+      discoveredAt: row.discovered_at,
+      reportedAt: row.discovered_at,
+      updatedAt: row.updated_at || row.discovered_at,
+      riskScore: calculateRiskScore({ severity: row.severity, exposedData: row.exposed_data || [], sources: row.sources || [], discoveredAt: row.discovered_at }),
+    }));
+  } catch {
+    return null;
+  }
+}
+
+async function writeToDatabase(incidents: Incident[]): Promise<void> {
+  const supabase = getSupabaseClient();
+  if (!supabase || incidents.length === 0) return;
+
+  try {
+    // Fetch all existing titles in one query instead of N individual lookups
+    const { data: existing } = await supabase
+      .from("incidents")
+      .select("title")
+      .in("title", incidents.slice(0, 50).map(i => i.title));
+
+    const existingTitles = new Set((existing || []).map((r: { title: string }) => r.title));
+    const newIncidents = incidents.slice(0, 50).filter(i => !existingTitles.has(i.title));
+
+    if (newIncidents.length === 0) return;
+
+    // Batch insert instead of one-by-one
+    await supabase.from("incidents").insert(
+      newIncidents.map(incident => ({
+        id: uuidv4(),
+        company_id: incident.companyId || null,
+        company_name: incident.companyName,
+        company_domain: incident.companyDomain,
+        title: incident.title,
+        summary: incident.summary,
+        description: incident.description,
+        severity: incident.severity,
+        status: incident.status,
+        sources: incident.sources,
+        exposed_data: incident.exposedData,
+        discovered_at: incident.discoveredAt,
+        breach_date: incident.breachDate || null,
+      }))
+    );
+  } catch (dbError) {
+    console.error("Error writing to Supabase:", dbError);
+  }
+}
+
+export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Promise<AggregationResult> {
+  const { secEdgar = true, news = true } = config;
+
+  // 1. Return in-memory cache immediately if fresh
   const cached = getCachedIncidents();
   if (cached && cached.length > 0) {
-    return {
-      incidents: cached,
-      isMockData: false,
-      sourceErrors: [],
-    };
+    return { incidents: cached, isMockData: false, sourceErrors: [] };
   }
 
+  // 2. Return from DB instantly, then kick off a background refresh if stale
+  const dbIncidents = await fetchFromDatabase();
+  if (dbIncidents && dbIncidents.length > 0) {
+    setCachedIncidents(dbIncidents);
+
+    // Check if oldest fetched record is stale — if so, refresh in background
+    const oldest = dbIncidents.reduce((min, i) =>
+      new Date(i.discoveredAt).getTime() < new Date(min.discoveredAt).getTime() ? i : min
+    );
+    const isStale = Date.now() - new Date(oldest.discoveredAt).getTime() > DB_STALE_MS;
+
+    if (isStale) {
+      // Fire-and-forget: don't await, user already has data
+      refreshIncidentsInBackground({ secEdgar, news }).catch(err =>
+        console.error("Background refresh failed:", err)
+      );
+    }
+
+    return { incidents: dbIncidents, isMockData: false, sourceErrors: [] };
+  }
+
+  // 3. Cold start — no DB data yet, fetch live
+  return refreshIncidentsInBackground({ secEdgar, news });
+}
+
+async function refreshIncidentsInBackground(config: { secEdgar: boolean; news: boolean }): Promise<AggregationResult> {
   const incidents: Incident[] = [];
   const sourceErrors: string[] = [];
 
   const results = await Promise.allSettled([
-    secEdgar ? fetchSECIncidents() : Promise.resolve([]),
-    news ? fetchNewsIncidents() : Promise.resolve([]),
+    config.secEdgar ? fetchSECIncidents() : Promise.resolve([]),
+    config.news ? fetchNewsIncidents() : Promise.resolve([]),
   ]);
 
   for (let i = 0; i < results.length; i++) {
@@ -231,65 +329,19 @@ export async function aggregateIncidents(config: Partial<SourceConfig> = {}): Pr
     }
   }
 
-  const supabase = getSupabaseClient();
-  
-  if (supabase && incidents.length > 0) {
-    try {
-      for (const incident of incidents.slice(0, 50)) {
-        const { data: existing } = await supabase
-          .from("incidents")
-          .select("id")
-          .eq("title", incident.title)
-          .limit(1)
-          .single();
-
-        if (!existing) {
-          await supabase.from("incidents").insert({
-            id: uuidv4(),
-            company_id: incident.companyId || null,
-            company_name: incident.companyName,
-            company_domain: incident.companyDomain,
-            title: incident.title,
-            summary: incident.summary,
-            description: incident.description,
-            severity: incident.severity,
-            status: incident.status,
-            sources: incident.sources,
-            exposed_data: incident.exposedData,
-            discovered_at: incident.discoveredAt,
-            breach_date: incident.breachDate || null,
-          });
-        }
-      }
-    } catch (dbError) {
-      console.error("Error caching to Supabase:", dbError);
-    }
-  }
-
   if (incidents.length === 0) {
-    return {
-      incidents: MOCK_INCIDENTS,
-      isMockData: true,
-      sourceErrors: ["No live data available. Showing demo incidents."],
-    };
+    return { incidents: MOCK_INCIDENTS, isMockData: true, sourceErrors: ["No live data available. Showing demo incidents."] };
   }
 
   const incidentsWithRisk = incidents.map(incident => ({
     ...incident,
     riskScore: calculateRiskScore(incident),
-  }));
+  })).sort((a, b) => (b.riskScore?.overall || 0) - (a.riskScore?.overall || 0));
 
-  const sortedIncidents = incidentsWithRisk.sort(
-    (a, b) => (b.riskScore?.overall || 0) - (a.riskScore?.overall || 0)
-  );
+  setCachedIncidents(incidentsWithRisk);
+  writeToDatabase(incidentsWithRisk).catch(err => console.error("DB write failed:", err));
 
-  setCachedIncidents(sortedIncidents);
-
-  return {
-    incidents: sortedIncidents,
-    isMockData: false,
-    sourceErrors,
-  };
+  return { incidents: incidentsWithRisk, isMockData: false, sourceErrors };
 }
 
 async function fetchSECIncidents(): Promise<Incident[]> {

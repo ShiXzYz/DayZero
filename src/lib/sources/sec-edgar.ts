@@ -299,33 +299,29 @@ export async function fetchRecent8KFilings(daysBack: number = 30): Promise<SECFi
 
   console.log("Fetching SEC EDGAR 8-K filings...");
 
-  for (const company of KNOWN_CIKs) {
-    try {
+  // Fetch all companies in parallel instead of sequentially
+  const companyResults = await Promise.allSettled(
+    KNOWN_CIKs.map(async (company) => {
       const submissions = await getCompanyFilings(company.cik);
-      
-      if (!submissions) {
-        console.log(`No submissions found for ${company.ticker}`);
-        continue;
-      }
+      if (!submissions) return [];
 
       const filings = parse8KFilings(submissions, daysBack);
-      
-      if (filings.length === 0) {
-        console.log(`No 8-K filings in last ${daysBack} days for ${company.ticker}`);
-        continue;
-      }
+      if (filings.length === 0) return [];
 
-      console.log(`Found ${filings.length} 8-K filings for ${company.ticker}`);
+      // Fetch all filing contents for this company in parallel
+      await Promise.all(
+        filings.map(async (filing) => {
+          filing.content = await fetchFilingContent(filing.documentUrl);
+        })
+      );
 
-      for (const filing of filings) {
-        const content = await fetchFilingContent(filing.documentUrl);
-        filing.content = content;
-        allFilings.push(filing);
-      }
+      return filings;
+    })
+  );
 
-      await new Promise(r => setTimeout(r, 250));
-    } catch (error) {
-      console.error(`Error fetching filings for ${company.ticker}:`, error);
+  for (const result of companyResults) {
+    if (result.status === "fulfilled") {
+      allFilings.push(...result.value);
     }
   }
 

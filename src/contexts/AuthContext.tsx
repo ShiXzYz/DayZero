@@ -43,12 +43,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedUser = localStorage.getItem("dayzero_user");
       if (storedUser) {
         try {
-          setUser(JSON.parse(storedUser));
+          const parsed = JSON.parse(storedUser);
+          // Only restore if it looks like a real signed-in user (has email and non-anonymous id)
+          if (parsed?.email && parsed?.id && !parsed.id.startsWith("anonymous")) {
+            setUser(parsed);
+          } else {
+            localStorage.removeItem("dayzero_user");
+            setUser(null);
+          }
         } catch {
-          setUser(DEFAULT_FREE_USER);
+          localStorage.removeItem("dayzero_user");
+          setUser(null);
         }
       } else {
-        setUser(DEFAULT_FREE_USER);
+        setUser(null);
       }
       setLoading(false);
       return;
@@ -62,20 +70,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // First, try to restore session from localStorage
+    // First, try to restore session from Supabase (not localStorage)
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         console.log("[AuthContext] Restored session for user:", session.user.id);
         lastProcessedUserIdRef.current = session.user.id;
         fetchUserProfile(session.user.id);
       } else {
-        console.log("[AuthContext] No session found, using default user");
-        setUser(DEFAULT_FREE_USER);
+        console.log("[AuthContext] No session found, user is not signed in");
+        // Clear any stale localStorage user so we don't show pro to unauthenticated users
+        localStorage.removeItem("dayzero_user");
+        setUser(null);
         setLoading(false);
       }
     }).catch(error => {
       console.error("[AuthContext] Error getting session:", error);
-      setUser(DEFAULT_FREE_USER);
+      localStorage.removeItem("dayzero_user");
+      setUser(null);
       setLoading(false);
     });
 
@@ -92,7 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } else {
           lastProcessedUserIdRef.current = null;
-          setUser(DEFAULT_FREE_USER);        }
+          // Clear stale localStorage on sign-out so pro never bleeds into a logged-out state
+          localStorage.removeItem("dayzero_user");
+          setUser(null);
+        }
       }
     );
 
@@ -287,8 +301,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     
     setUser(updatedUser);
-    
-    if (user.id && !user.id.startsWith("mock-") && !user.id.startsWith("anonymous")) {
+
+    const isRealUser = user.id && !user.id.startsWith("mock-") && !user.id.startsWith("anonymous");
+
+    if (isRealUser) {
       const supabaseClient = getSupabaseClient();
       if (supabaseClient) {
         await supabaseClient
@@ -300,9 +316,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
           .eq("id", user.id);
       }
+      // Only persist to localStorage for real authenticated users
+      localStorage.setItem("dayzero_user", JSON.stringify(updatedUser));
     }
-    
-    localStorage.setItem("dayzero_user", JSON.stringify(updatedUser));
   }
 
   return (

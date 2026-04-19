@@ -166,7 +166,7 @@ export default function FeedPage() {
             <Link href="/companies" className="hover:text-white transition-colors">Companies</Link>
             <Link href="/alerts" className="hover:text-white transition-colors">Alerts</Link>
             <Link href="/check-exposure" className="hover:text-white transition-colors">Check Exposure</Link>
-            {user?.subscriptionTier !== "free" && (
+            {user?.subscriptionTier === "pro" && (
               <Link href="/settings/subscription" className="hover:text-white transition-colors text-amber-400">Pro</Link>
             )}
           </div>
@@ -192,7 +192,7 @@ export default function FeedPage() {
                 <Link href="/companies" className="px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">Companies</Link>
                 <Link href="/alerts" className="px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">Alerts</Link>
                 <Link href="/check-exposure" className="px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">Check Exposure</Link>
-                {user?.subscriptionTier !== "free" ? (
+                {user?.subscriptionTier === "pro" ? (
                   <Link href="/settings/subscription" className="px-4 py-3 text-amber-400 hover:bg-slate-800 transition-colors flex items-center gap-2">
                     <Crown className="h-4 w-4" />
                     Pro Plan
@@ -229,7 +229,7 @@ export default function FeedPage() {
                 >
                   <User className="h-4 w-4 text-slate-400" />
                   <span className="text-sm text-slate-300 max-w-[120px] truncate">{user?.email?.split("@")[0]}</span>
-                  {user?.subscriptionTier !== "free" && (
+                  {user?.subscriptionTier === "pro" && (
                     <Crown className="h-3.5 w-3.5 text-amber-400" />
                   )}
                 </button>
@@ -476,7 +476,7 @@ export default function FeedPage() {
                     <div className="mt-4 flex items-center justify-between">
                       <div className="flex items-center gap-4 text-xs text-slate-500">
                         <span>Confidence: {Math.round((incident.sources[0]?.confidence || 0) * 100)}%</span>
-                        {user?.subscriptionTier !== "free" && incident.riskScore && (
+                        {user?.subscriptionTier === "pro" && incident.riskScore && (
                           <span className={`flex items-center gap-1.5 ${
                             incident.riskScore.label === "Critical" ? "text-red-400" :
                             incident.riskScore.label === "High" ? "text-orange-400" :
@@ -519,7 +519,7 @@ export default function FeedPage() {
                       </div>
                     </div>
 
-                    {user?.subscriptionTier !== "free" && (
+                    {user?.subscriptionTier === "pro" && (
                       <div className="mt-3 pt-3 border-t border-slate-800">
                         <div className="flex gap-2 mb-2">
                           <Link
