@@ -138,68 +138,113 @@ function parse8KFilings(filings: EDGARSubmissions, daysBack: number = 30): SECFi
     });
 }
 
-function analyzeFilingContent(content: string): { 
-  severity: Severity; 
+// Priority-ordered patterns: first match wins for severity + category label
+const THREAT_PATTERNS: { regex: RegExp; severity: Severity; label: string }[] = [
+  { regex: /ransomware|ransom demand|extortion/i, severity: "Critical", label: "ransomware" },
+  { regex: /data breach|unauthorized access|systems were compromised|network was compromised/i, severity: "High", label: "breach" },
+  { regex: /cybersecurity incident|cyber attack|cyber event|security incident/i, severity: "High", label: "cyber incident" },
+  { regex: /unauthorized|unauthorised/i, severity: "High", label: "unauthorized access" },
+  { regex: /malware|phishing|intrusion/i, severity: "High", label: "malware" },
+  { regex: /material adverse|material effect|significant impact/i, severity: "Medium", label: "material impact" },
+];
+
+const EXPOSED_DATA_PATTERNS: { regex: RegExp; label: string }[] = [
+  { regex: /password|credential|login|authentication/i, label: "credentials" },
+  { regex: /personal information|personally identifiable|pii|email address|phone number/i, label: "personal information" },
+  { regex: /payment card|credit card|debit card|bank account|financial information/i, label: "financial data" },
+  { regex: /medical|health record|patient/i, label: "medical records" },
+  { regex: /social security|ssn/i, label: "SSNs" },
+  { regex: /employee|personnel|staff record/i, label: "employee records" },
+  { regex: /customer data|user data|client data/i, label: "customer data" },
+];
+
+/**
+ * Extract the most relevant 1-2 sentences from the filing text.
+ * Splits on sentence boundaries and scores each sentence by how many
+ * security-relevant keywords it contains, then returns the top scorer(s).
+ */
+function extractKeySentences(content: string, maxSentences: number = 2): string {
+  // Work with the first ~8000 chars — the material event section is always near the top
+  const chunk = content.slice(0, 8000);
+
+  // Split on sentence-ending punctuation followed by whitespace/capital letter
+  const sentences = chunk
+    .split(/(?<=[.!?])\s+(?=[A-Z"(])/)
+    .map(s => s.replace(/\s+/g, " ").trim())
+    .filter(s => s.length > 40 && s.length < 600);
+
+  if (sentences.length === 0) return "";
+
+  const SCORE_TERMS = [
+    /cybersecurity|cyber/i,
+    /breach|unauthorized|intrusion|incident/i,
+    /ransomware|malware|phishing/i,
+    /data|information|records/i,
+    /customer|employee|patient|user/i,
+    /system|network|server|infrastructure/i,
+    /accessed|compromised|exposed|stolen|leaked/i,
+    /investigate|detect|discover|notif/i,
+    /material|impact|effect|significant/i,
+    /remediat|contain|restor|recover/i,
+  ];
+
+  const scored = sentences.map(s => {
+    let score = SCORE_TERMS.reduce((acc, re) => acc + (re.test(s) ? 1 : 0), 0);
+    // Bonus for Item 8.01 or Item 1.05 language (the cybersecurity/material event items)
+    if (/item\s+(8\.01|1\.05)/i.test(s)) score += 3;
+    return { s, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  // Take top sentences, then re-order them by their original position for readability
+  const topIndices = scored.slice(0, maxSentences).map(({ s }) => sentences.indexOf(s));
+  topIndices.sort((a, b) => a - b);
+
+  return topIndices.map(i => sentences[i]).join(" ").trim();
+}
+
+function analyzeFilingContent(content: string): {
+  severity: Severity;
   exposedTypes: string[];
   summary: string;
   threatType: string;
 } {
-  const lowerContent = content.toLowerCase();
-  
-  const exposedTypes: string[] = [];
   let severity: Severity = "Medium";
-  let threatType = "Material event disclosure filed with SEC";
+  let threatType = "material disclosure";
 
-  if (/ransomware|ransom|extortion/i.test(lowerContent)) {
-    threatType = "Ransomware attack - hackers locked company files and demanded payment";
-    exposedTypes.push("Your account credentials may be compromised");
-    severity = "Critical";
+  for (const { regex, severity: s, label } of THREAT_PATTERNS) {
+    if (regex.test(content)) {
+      severity = s;
+      threatType = label;
+      break;
+    }
   }
 
-  if (/data breach|breach of|data was|information was|records were/i.test(lowerContent)) {
-    threatType = "Data breach incident - unauthorized access to company systems";
-    exposedTypes.push("Your personal information may have been exposed");
-    severity = "High";
+  const exposedTypes: string[] = [];
+  for (const { regex, label } of EXPOSED_DATA_PATTERNS) {
+    if (regex.test(content)) exposedTypes.push(label);
+    if (exposedTypes.length === 3) break;
   }
 
-  if (/password|credential|login|authentication/i.test(lowerContent)) {
-    exposedTypes.push("Your password or login credentials may be at risk");
+  // Build the summary from actual filing text
+  const extracted = extractKeySentences(content, 2);
+
+  let summary: string;
+  if (extracted) {
+    // Clean up any leftover boilerplate headers that sometimes bleed in
+    summary = extracted
+      .replace(/^(item\s+\d+\.\d+\.?\s*)/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    // Ensure it ends with a period
+    if (!/[.!?]$/.test(summary)) summary += ".";
+  } else {
+    // Fallback if content was empty or too short
+    summary = `${threatType.charAt(0).toUpperCase() + threatType.slice(1)} disclosed in SEC 8-K filing.`;
   }
 
-  if (/personal information|personally identifiable|pii|email address|phone number/i.test(lowerContent)) {
-    exposedTypes.push("Your email and contact information may have been leaked");
-  }
-
-  if (/financial|payment card|credit card|bank account/i.test(lowerContent)) {
-    exposedTypes.push("Your payment or financial information may be at risk");
-  }
-
-  if (/customer|customer data|user data|client data/i.test(lowerContent)) {
-    exposedTypes.push("Customer account data may have been accessed");
-  }
-
-  if (/employee|staff|personnel/i.test(lowerContent)) {
-    exposedTypes.push("Employee records may have been compromised");
-  }
-
-  if (/cybersecurity|cybersecurity incident|security incident|cyber event/i.test(lowerContent)) {
-    if (severity === "Medium") severity = "High";
-    threatType = "Cybersecurity incident - company systems potentially compromised";
-    exposedTypes.push("Your account information may be at risk");
-  }
-
-  if (/unauthorized|unauthorised|access without|without authorization/i.test(lowerContent)) {
-    exposedTypes.push("Your account may have been accessed without authorization");
-    if (severity !== "Critical") severity = "High";
-  }
-
-  if (/material adverse|material effect|significant impact/i.test(lowerContent)) {
-    threatType = "Material event with significant business impact disclosed";
-  }
-
-  const summary = threatType + ".";
-
-  return { severity, exposedTypes: exposedTypes.slice(0, 3), summary, threatType };
+  return { severity, exposedTypes, summary, threatType };
 }
 
 export async function fetchRecent8KFilings(daysBack: number = 30): Promise<SECFiling[]> {
