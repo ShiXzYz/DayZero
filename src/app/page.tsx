@@ -409,18 +409,29 @@ export default function FeedPage() {
                   {/* Actions */}
                   <div className="mt-3 flex items-center justify-between">
                     <div className="flex gap-2">
-                      <Link
-                        href={`/protect/${encodeURIComponent(incident.companyName)}?exposed=${encodeURIComponent(incident.exposedData.map(e => e.types.join(",")).join(";"))}`}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-2.5 py-1 rounded-full transition-all"
-                      >
-                        <AlertTriangle className="h-3 w-3" /> Protect
-                      </Link>
-                      <Link
-                        href={`/companies?follow=${encodeURIComponent(incident.companyName)}`}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 px-2.5 py-1 rounded-full transition-all"
-                      >
-                        <Bell className="h-3 w-3" /> Alert me
-                      </Link>
+                      {isAuthenticated ? (
+                        <>
+                          <Link
+                            href={`/protect/${encodeURIComponent(incident.companyName)}?exposed=${encodeURIComponent(incident.exposedData.map(e => e.types.join(",")).join(";"))}`}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-2.5 py-1 rounded-full transition-all"
+                          >
+                            <AlertTriangle className="h-3 w-3" /> Protect
+                          </Link>
+                          <Link
+                            href={`/companies?follow=${encodeURIComponent(incident.companyName)}`}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 px-2.5 py-1 rounded-full transition-all"
+                          >
+                            <Bell className="h-3 w-3" /> Alert me
+                          </Link>
+                        </>
+                      ) : (
+                        <Link
+                          href="/auth/login"
+                          className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-2.5 py-1 rounded-full transition-all"
+                        >
+                          <User className="h-3 w-3" /> Sign in to take action
+                        </Link>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       {incident.sources[0]?.url && (
