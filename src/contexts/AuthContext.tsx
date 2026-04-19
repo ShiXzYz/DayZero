@@ -255,11 +255,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!supabaseClient) {
         return { error: "Supabase not configured" };
       }
-      const { error } = await supabaseClient.auth.signInWithPassword({
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password,
       });
-      return { error: error?.message || null };
+      if (error) return { error: error.message };
+      // Fetch the profile immediately so user state is set before the caller navigates
+      if (data.user) {
+        lastProcessedUserIdRef.current = data.user.id;
+        await fetchUserProfile(data.user.id);
+      }
+      return { error: null };
     } catch (error) {
       return { error: "An unexpected error occurred" };
     }

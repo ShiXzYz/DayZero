@@ -56,7 +56,7 @@ const INITIAL_LIMIT = 10;
 const LOAD_MORE_COUNT = 30;
 
 export default function FeedPage() {
-  const { user, signOut } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [filteredIncidents, setFilteredIncidents] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -203,7 +203,7 @@ export default function FeedPage() {
                     Upgrade to Pro
                   </Link>
                 ) : null}
-                {isAuthenticated ? (
+                {authLoading ? null : isAuthenticated ? (
                   <button
                     onClick={() => { signOut(); setShowUserMenu(false); }}
                     className="px-4 py-3 text-left text-slate-300 hover:bg-slate-800 hover:text-white transition-colors flex items-center gap-2"
@@ -221,7 +221,9 @@ export default function FeedPage() {
           )}
           
           <div className="hidden md:flex items-center gap-3">
-            {isAuthenticated ? (
+            {authLoading ? (
+              <div className="h-8 w-24 rounded-lg bg-slate-800 animate-pulse" />
+            ) : isAuthenticated ? (
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
