@@ -73,9 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // First, try to restore session from Supabase (not localStorage)
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        console.log("[AuthContext] Restored session for user:", session.user.id);
         lastProcessedUserIdRef.current = session.user.id;
-        fetchUserProfile(session.user.id);
+        fetchUserProfile(session.user.id, session.user.email);
       } else {
         console.log("[AuthContext] No session found, user is not signed in");
         // Clear any stale localStorage user so we don't show pro to unauthenticated users
@@ -97,9 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           // Only fetch if this is a new user
           if (lastProcessedUserIdRef.current !== session.user.id) {
-            console.log("[AuthContext] New user session, fetching profile");
             lastProcessedUserIdRef.current = session.user.id;
-            await fetchUserProfile(session.user.id);
+            await fetchUserProfile(session.user.id, session.user.email);
           }
         } else {
           lastProcessedUserIdRef.current = null;
@@ -113,85 +111,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function fetchUserProfile(userId: string) {
-    console.log("[AuthContext] fetchUserProfile called for:", userId);
+  async function fetchUserProfile(userId: string, userEmail?: string) {
     try {
       const supabaseClient = getSupabaseClient();
       if (!supabaseClient) {
-        console.error("[AuthContext] Supabase client not available");
-        setUser(DEFAULT_FREE_USER);
-        setLoading(false);
+        setUser(null);
         return;
       }
 
-      console.log("[AuthContext] Fetching user profile from database...");
       const { data, error } = await supabaseClient
         .from("users")
         .select("*")
         .eq("id", userId)
         .single();
 
-      console.log("[AuthContext] Database response:", { data, error });
-
       if (error && error.code === "PGRST116") {
-        // User doesn't exist, create them
-        console.log("[AuthContext] User not found in database, creating new user:", userId);
-        const session = await supabaseClient.auth.getSession();
-        console.log("[AuthContext] Session:", !!session.data.session?.user);
-        if (session.data.session?.user) {
-          const { email, id } = session.data.session.user;
-          console.log("[AuthContext] Creating user with email:", email);
-          const newUser: User = {
-            id,
-            email: email || "",
-            emailHash: btoa(email || "").slice(0, 20),
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            notificationPreferences: DEFAULT_FREE_USER.notificationPreferences,
-            subscriptionTier: "free",
-            maxCompanyFollows: 3,
-            hibpChecksRemaining: 1,
-          };
-          
-          const { error: insertError } = await supabaseClient.from("users").insert({
-            id: newUser.id,
-            email: newUser.email,
-            email_hash: newUser.emailHash,
-            created_at: newUser.createdAt,
-            updated_at: newUser.updatedAt,
-            notification_preferences: newUser.notificationPreferences,
-            subscription_tier: newUser.subscriptionTier,
-            max_company_follows: newUser.maxCompanyFollows,
-            hibp_checks_remaining: newUser.hibpChecksRemaining,
-          });
-          
-          if (insertError) {
-            console.error("[AuthContext] Error creating user in database:", insertError);
-          } else {
-            console.log("[AuthContext] User created in database successfully");
-          }
-          setUser(newUser);
-          console.log("[AuthContext] User state set to:", newUser);
-        }
+        // User doesn't exist in our users table yet — create them
+        // Use the email passed in directly rather than re-fetching the session
+        const email = userEmail || "";
+        const newUser: User = {
+          id: userId,
+          email,
+          emailHash: btoa(email).slice(0, 20),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          notificationPreferences: DEFAULT_FREE_USER.notificationPreferences,
+          subscriptionTier: "free",
+          maxCompanyFollows: 3,
+          hibpChecksRemaining: 1,
+        };
+
+        // Insert in background — don't block or fail login if this errors
+        supabaseClient.from("users").insert({
+          id: newUser.id,
+          email: newUser.email,
+          email_hash: newUser.emailHash,
+          created_at: newUser.createdAt,
+          updated_at: newUser.updatedAt,
+          notification_preferences: newUser.notificationPreferences,
+          subscription_tier: newUser.subscriptionTier,
+          max_company_follows: newUser.maxCompanyFollows,
+          hibp_checks_remaining: newUser.hibpChecksRemaining,
+        }).then(({ error: insertError }) => {
+          if (insertError) console.error("[AuthContext] Error creating user row:", insertError);
+        });
+
+        setUser(newUser);
       } else if (error) {
-        // Other error
         console.error("[AuthContext] Error fetching user profile:", error);
-        setUser(DEFAULT_FREE_USER);
+        // Still mark as logged in with minimal info so the app doesn't get stuck
+        const email = userEmail || "";
+        setUser({ ...DEFAULT_FREE_USER, id: userId, email, emailHash: btoa(email).slice(0, 20) });
       } else if (data) {
-        // User found
-        console.log("[AuthContext] User profile loaded from database:", data.id, data.email);
         setUser({
-          ...DEFAULT_FREE_USER,
-          ...data,
+          id: data.id,
+          email: data.email || userEmail || "",
+          emailHash: data.email_hash || "",
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+          notificationPreferences: data.notification_preferences || DEFAULT_FREE_USER.notificationPreferences,
+          subscriptionTier: data.subscription_tier || "free",
+          maxCompanyFollows: data.max_company_follows || 3,
+          hibpChecksRemaining: data.hibp_checks_remaining ?? 1,
+          stripeCustomerId: data.stripe_customer_id,
+          stripeSubscriptionId: data.stripe_subscription_id,
+          fcmToken: data.fcm_token,
         });
       } else {
-        // No data and no error - shouldn't happen
-        console.warn("[AuthContext] No user data returned from database");
-        setUser(DEFAULT_FREE_USER);
+        // Fallback — should not happen but never get stuck
+        const email = userEmail || "";
+        setUser({ ...DEFAULT_FREE_USER, id: userId, email, emailHash: btoa(email).slice(0, 20) });
       }
-    } catch (error) {
-      console.error("[AuthContext] Exception in fetchUserProfile:", error);
-      setUser(DEFAULT_FREE_USER);
+    } catch (err) {
+      console.error("[AuthContext] Exception in fetchUserProfile:", err);
+      // Always resolve — never leave loading=true
+      const email = userEmail || "";
+      setUser({ ...DEFAULT_FREE_USER, id: userId, email, emailHash: btoa(email).slice(0, 20) });
     } finally {
       setLoading(false);
     }
@@ -263,7 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch the profile immediately so user state is set before the caller navigates
       if (data.user) {
         lastProcessedUserIdRef.current = data.user.id;
-        await fetchUserProfile(data.user.id);
+        await fetchUserProfile(data.user.id, data.user.email);
       }
       return { error: null };
     } catch (error) {
@@ -273,7 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     if (!isSupabaseConfigured()) {
-      setUser(DEFAULT_FREE_USER);
+      setUser(null);
       localStorage.removeItem("dayzero_user");
       return;
     }
