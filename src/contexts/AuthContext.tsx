@@ -98,6 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (lastProcessedUserIdRef.current !== session.user.id) {
             lastProcessedUserIdRef.current = session.user.id;
             await fetchUserProfile(session.user.id, session.user.email);
+          } else {
+            // Already fetched by signIn — just make sure loading is cleared
+            setLoading(false);
           }
         } else {
           lastProcessedUserIdRef.current = null;
@@ -277,7 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (supabaseClient) {
       await supabaseClient.auth.signOut();
     }
-    setUser(DEFAULT_FREE_USER);
+    setUser(null);
   }
 
   async function updateSubscription(tier: SubscriptionTier) {

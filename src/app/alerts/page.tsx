@@ -2,19 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
-  Shield,
-  Bell,
-  CheckCircle,
-  AlertTriangle,
-  BellOff,
-  Settings,
-  RefreshCw,
-  BellRing
+  Shield, Bell, CheckCircle, AlertTriangle, BellOff,
+  RefreshCw, BellRing, ChevronRight, Check
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Alert, Severity } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -27,41 +19,57 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
-const SEVERITY_COLORS: Record<Severity, string> = {
-  Critical: "bg-red-500/20 text-red-300 border-red-500/30",
-  High: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  Medium: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-  Low: "bg-green-500/20 text-green-300 border-green-500/30",
+const SEVERITY_CONFIG: Record<Severity, { pill: string; icon: string; glow: string }> = {
+  Critical: { pill: "text-red-400 bg-red-500/10 border-red-500/25", icon: "text-red-400", glow: "shadow-red-500/10" },
+  High:     { pill: "text-orange-400 bg-orange-500/10 border-orange-500/25", icon: "text-orange-400", glow: "shadow-orange-500/10" },
+  Medium:   { pill: "text-yellow-400 bg-yellow-500/10 border-yellow-500/25", icon: "text-yellow-400", glow: "shadow-yellow-500/10" },
+  Low:      { pill: "text-emerald-400 bg-emerald-500/10 border-emerald-500/25", icon: "text-emerald-400", glow: "shadow-emerald-500/10" },
 };
 
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 export default function AlertsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [pushStatus, setPushStatus] = useState<"unknown" | "granted" | "denied" | "loading">("unknown");
 
-  const isAuthenticated = user && user.email;
+  const isAuthenticated = !authLoading && user && user.email;
 
   useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPushStatus(
+        Notification.permission === "granted" ? "granted" :
+        Notification.permission === "denied" ? "denied" : "unknown"
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
     if (isAuthenticated && user?.id) {
       fetchAlerts(user.id);
     } else {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id, authLoading]);
 
   const fetchAlerts = async (uid: string) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({ userId: uid });
       if (filter === "unread") params.set("unreadOnly", "true");
-
       const res = await fetch(`/api/alerts?${params}`);
       const data = await res.json();
-      
-      if (data.alerts) {
-        setAlerts(data.alerts);
-      }
+      if (data.alerts) setAlerts(data.alerts);
     } catch (error) {
       console.error("Error fetching alerts:", error);
     } finally {
@@ -76,47 +84,30 @@ export default function AlertsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ alertId, isRead: true }),
       });
-
-      setAlerts(prev =>
-        prev.map(a => (a.id === alertId ? { ...a, isRead: true } : a))
-      );
+      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isRead: true } : a));
     } catch (error) {
       console.error("Error marking alert as read:", error);
     }
   };
-
-  const [pushStatus, setPushStatus] = useState<"unknown" | "granted" | "denied" | "loading">("unknown");
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setPushStatus(Notification.permission === "granted" ? "granted" : Notification.permission === "denied" ? "denied" : "unknown");
-    }
-  }, []);
 
   const enablePushNotifications = async () => {
     if (!user?.id || !VAPID_PUBLIC_KEY) return;
     setPushStatus("loading");
     try {
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setPushStatus("denied");
-        return;
-      }
+      if (permission !== "granted") { setPushStatus("denied"); return; }
       const registration = await navigator.serviceWorker.ready;
       const existing = await registration.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
-
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
-
       await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, subscription }),
       });
-
       setPushStatus("granted");
     } catch (err) {
       console.error("Push subscription failed:", err);
@@ -128,181 +119,177 @@ export default function AlertsPage() {
   const filteredAlerts = filter === "unread" ? alerts.filter(a => !a.isRead) : alerts;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <nav className="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-[#0a0f1e] text-slate-100">
+
+      {/* NAV */}
+      <nav className="border-b border-white/5 bg-[#0a0f1e]/80 backdrop-blur-xl sticky top-0 z-50">
+        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-blue-400" />
-            <span className="text-xl font-bold text-white tracking-tight">DayZero</span>
+            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
+              <Shield className="h-4 w-4 text-white" />
+            </div>
+            <span className="text-base font-bold text-white tracking-tight">DayZero</span>
           </Link>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="rounded-xl">
-              <Settings className="h-5 w-5 text-slate-400" />
-            </Button>
+          <div className="hidden md:flex items-center gap-1">
+            {[["Feed", "/"], ["Companies", "/companies"], ["Alerts", "/alerts"], ["Check Exposure", "/check-exposure"]].map(([label, href]) => (
+              <Link key={href} href={href}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${href === "/alerts" ? "text-white bg-white/8" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>
+                {label}
+              </Link>
+            ))}
           </div>
+          <button
+            onClick={() => user?.id && fetchAlerts(user.id)}
+            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          </button>
         </div>
       </nav>
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
-          <div className="flex items-center justify-between">
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-white">Alerts</h1>
-              <p className="mt-1 text-slate-400 text-sm">
+              <p className="text-sm text-slate-500 mt-1">
                 {unreadCount > 0
                   ? `${unreadCount} unread alert${unreadCount > 1 ? "s" : ""}`
                   : "You're all caught up"}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => user?.id && fetchAlerts(user.id)}
-                className="rounded-xl"
-              >
-                <RefreshCw className={`h-4 w-4 text-slate-400 ${isLoading ? "animate-spin" : ""}`} />
-              </Button>
-              {isAuthenticated && pushStatus !== "granted" && pushStatus !== "denied" && "Notification" in (typeof window !== "undefined" ? window : {}) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={enablePushNotifications}
-                  disabled={pushStatus === "loading"}
-                  className="rounded-xl text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 gap-1.5 text-xs"
-                >
-                  <BellRing className="h-4 w-4" />
-                  {pushStatus === "loading" ? "Enabling..." : "Enable alerts"}
-                </Button>
-              )}
-              {pushStatus === "granted" && (
-                <span className="text-xs text-green-400 flex items-center gap-1">
-                  <BellRing className="h-3.5 w-3.5" /> On
-                </span>
-              )}
-            </div>
+            {/* Push notification toggle */}
+            {isAuthenticated && (
+              <div className="shrink-0">
+                {pushStatus === "granted" ? (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full">
+                    <BellRing className="h-3.5 w-3.5" /> Notifications on
+                  </div>
+                ) : pushStatus === "denied" ? (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
+                    <BellOff className="h-3.5 w-3.5" /> Blocked
+                  </div>
+                ) : (
+                  <button
+                    onClick={enablePushNotifications}
+                    disabled={pushStatus === "loading"}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
+                  >
+                    <Bell className="h-3.5 w-3.5" />
+                    {pushStatus === "loading" ? "Enabling…" : "Enable alerts"}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </motion.div>
 
-        <div className="mb-4 flex gap-2">
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              filter === "all"
-                ? "bg-blue-600 text-white"
-                : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilter("unread")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-              filter === "unread"
-                ? "bg-blue-600 text-white"
-                : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-            }`}
-          >
-            Unread
-            {unreadCount > 0 && (
-              <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                {unreadCount}
-              </span>
-            )}
-          </button>
+        {/* Filter pills */}
+        <div className="flex gap-2">
+          {(["all", "unread"] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                filter === f ? "bg-blue-600 text-white" : "bg-white/5 text-slate-400 hover:bg-white/10 border border-white/8"
+              }`}>
+              {f === "all" ? "All" : "Unread"}
+              {f === "unread" && unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full leading-none">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          ))}
+          {unreadCount > 0 && (
+            <button
+              onClick={() => alerts.forEach(a => !a.isRead && markAsRead(a.id))}
+              className="ml-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 transition-all"
+            >
+              <Check className="h-3 w-3" /> Mark all read
+            </button>
+          )}
         </div>
 
-        {!isAuthenticated ? (
-          <Card className="bg-slate-900 border-slate-700 rounded-2xl">
-            <CardContent className="p-8 text-center">
-              <BellOff className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-              <p className="text-white font-medium">Sign in to view alerts</p>
-              <p className="text-sm text-slate-400 mt-1">
-                Create an account to receive personalized breach alerts.
-              </p>
-              <Link href="/auth/login">
-                <Button className="mt-4 rounded-xl bg-blue-600 hover:bg-blue-500">
-                  Sign In
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+        {/* Content */}
+        {authLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => <div key={i} className="h-24 rounded-2xl bg-white/3 animate-pulse" />)}
+          </div>
+        ) : !isAuthenticated ? (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl bg-white/3 border border-white/8 p-10 text-center">
+            <BellOff className="h-10 w-10 mx-auto mb-3 text-slate-600" />
+            <p className="font-semibold text-white">Sign in to view alerts</p>
+            <p className="text-sm text-slate-500 mt-1">Create an account to receive personalized breach alerts.</p>
+            <Link href="/auth/login"
+              className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all">
+              Sign In <ChevronRight className="h-4 w-4" />
+            </Link>
+          </motion.div>
         ) : isLoading && alerts.length === 0 ? (
           <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-24 bg-slate-900 rounded-xl animate-pulse" />
-            ))}
+            {[1, 2, 3].map(i => <div key={i} className="h-24 rounded-2xl bg-white/3 animate-pulse" />)}
           </div>
         ) : filteredAlerts.length === 0 ? (
-          <Card className="bg-slate-900 border-slate-700 rounded-2xl">
-            <CardContent className="p-8 text-center">
-              <CheckCircle className="h-10 w-10 text-green-400 mx-auto mb-3" />
-              <p className="text-white font-medium">No alerts</p>
-              <p className="text-sm text-slate-400 mt-1">
-                {filter === "unread"
-                  ? "You've read all your alerts"
-                  : "Follow companies to receive breach alerts"}
-              </p>
-            </CardContent>
-          </Card>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl bg-white/3 border border-white/8 p-10 text-center">
+            <CheckCircle className="h-10 w-10 mx-auto mb-3 text-emerald-400" />
+            <p className="font-semibold text-white">No alerts</p>
+            <p className="text-sm text-slate-500 mt-1">
+              {filter === "unread" ? "You've read all your alerts" : "Follow companies to receive breach alerts"}
+            </p>
+          </motion.div>
         ) : (
-          <div className="space-y-3">
-            {filteredAlerts.map((alert, idx) => (
-              <motion.div
-                key={alert.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.03 }}
-              >
-                <Card
-                  className={`bg-slate-900 border rounded-2xl transition-all ${
-                    alert.isRead ? "border-slate-800" : "border-slate-700"
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className={`mt-0.5 p-2 rounded-lg ${
-                        alert.severity === "Critical"
-                          ? "bg-red-500/20"
-                          : alert.severity === "High"
-                          ? "bg-orange-500/20"
-                          : "bg-blue-500/20"
-                      }`}>
-                        <AlertTriangle className={`h-4 w-4 ${
-                          alert.severity === "Critical"
-                            ? "text-red-400"
-                            : alert.severity === "High"
-                            ? "text-orange-400"
-                            : "text-blue-400"
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${SEVERITY_COLORS[alert.severity]}`}>
-                            {alert.severity}
-                          </span>
-                          {!alert.isRead && (
-                            <span className="h-2 w-2 rounded-full bg-blue-400" />
-                          )}
+          <AnimatePresence>
+            <div className="space-y-2">
+              {filteredAlerts.map((alert, idx) => {
+                const cfg = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.Low;
+                return (
+                  <motion.div
+                    key={alert.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                  >
+                    <div className={`group rounded-2xl border p-4 transition-all ${
+                      alert.isRead
+                        ? "bg-white/2 border-white/6"
+                        : `bg-white/4 border-white/10 shadow-lg ${cfg.glow}`
+                    }`}>
+                      <div className="flex items-start gap-3">
+                        {/* Icon */}
+                        <div className={`mt-0.5 h-8 w-8 rounded-xl flex items-center justify-center shrink-0 ${
+                          alert.severity === "Critical" ? "bg-red-500/15" :
+                          alert.severity === "High" ? "bg-orange-500/15" :
+                          alert.severity === "Medium" ? "bg-yellow-500/15" : "bg-emerald-500/15"
+                        }`}>
+                          <AlertTriangle className={`h-4 w-4 ${cfg.icon}`} />
                         </div>
-                        <p className={`text-sm font-medium ${alert.isRead ? "text-slate-400" : "text-white"}`}>
-                          {alert.title}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                          {alert.message}
-                        </p>
-                        <div className="flex items-center justify-between mt-3">
-                          <span className="text-xs text-slate-600">
-                            {new Date(alert.createdAt).toLocaleDateString()}
-                          </span>
+
+                        {/* Body */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cfg.pill}`}>
+                              {alert.severity}
+                            </span>
+                            {!alert.isRead && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
+                            )}
+                            <span className="text-[11px] text-slate-600 ml-auto">{timeAgo(alert.createdAt)}</span>
+                          </div>
+
+                          <p className={`text-sm font-semibold leading-snug ${alert.isRead ? "text-slate-400" : "text-white"}`}>
+                            {alert.title}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                            {alert.message}
+                          </p>
+
                           {!alert.isRead && (
                             <button
                               onClick={() => markAsRead(alert.id)}
-                              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                              className="mt-2 text-[11px] text-blue-400 hover:text-blue-300 transition-colors font-medium"
                             >
                               Mark as read
                             </button>
@@ -310,27 +297,27 @@ export default function AlertsPage() {
                         </div>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </AnimatePresence>
         )}
 
-        <Card className="mt-8 bg-gradient-to-br from-blue-950 to-slate-900 border border-blue-800/30 rounded-2xl">
-          <CardContent className="p-6 text-center">
-            <Bell className="h-8 w-8 text-blue-400 mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-white">Stay Protected</h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Follow companies and enable notifications to get instant alerts when new incidents are reported.
+        {/* Follow companies CTA */}
+        {isAuthenticated && !isLoading && (
+          <div className="rounded-2xl bg-gradient-to-br from-blue-600/10 to-purple-600/5 border border-blue-500/15 p-5 text-center">
+            <Bell className="h-7 w-7 text-blue-400 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-white">Stay Protected</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Follow companies to get instant alerts when new incidents are reported.
             </p>
-            <Link href="/companies">
-              <Button className="mt-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm">
-                Follow Companies
-              </Button>
+            <Link href="/companies"
+              className="inline-flex items-center gap-1.5 mt-3 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-all">
+              Follow Companies <ChevronRight className="h-3.5 w-3.5" />
             </Link>
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
     </div>
   );
