@@ -10,51 +10,101 @@ interface ProtectPageProps {
   }>;
 }
 
-const COMPANY_SECURITY_URLS: Record<string, { password: string; account: string; name: string }> = {
-  "amazon": { name: "Amazon", password: "https://www.amazon.com/ap/settings/approval", account: "https://www.amazon.com/a/settings" },
-  "amzn": { name: "Amazon", password: "https://www.amazon.com/ap/settings/approval", account: "https://www.amazon.com/a/settings" },
-  "google": { name: "Google", password: "https://myaccount.google.com/password", account: "https://myaccount.google.com" },
-  "alphabet": { name: "Google", password: "https://myaccount.google.com/password", account: "https://myaccount.google.com" },
-  "facebook": { name: "Facebook", password: "https://www.facebook.com/settings?tab=security", account: "https://www.facebook.com/settings" },
-  "meta": { name: "Meta", password: "https://www.facebook.com/settings?tab=security", account: "https://www.facebook.com/settings" },
-  "apple": { name: "Apple", password: "https://appleid.apple.com", account: "https://account.apple.com" },
-  "microsoft": { name: "Microsoft", password: "https://account.microsoft.com/security", account: "https://account.microsoft.com" },
-  "netflix": { name: "Netflix", password: "https://www.netflix.com/password", account: "https://www.netflix.com/manageaccount" },
-  "twitter": { name: "Twitter/X", password: "https://twitter.com/settings/password", account: "https://twitter.com/settings" },
-  "x corp": { name: "X (Twitter)", password: "https://twitter.com/settings/password", account: "https://twitter.com/settings" },
-  "linkedin": { name: "LinkedIn", password: "https://www.linkedin.com/psettings/change-password", account: "https://www.linkedin.com/psettings" },
-  "spotify": { name: "Spotify", password: "https://www.spotify.com/account/overview/", account: "https://www.spotify.com/account/overview/" },
-  "uber": { name: "Uber", password: "https://auth.uber.com/v1/passwords", account: "https://myaccount.uber.com" },
-  "lyft": { name: "Lyft", password: "https://account.lyft.com/auth/password", account: "https://account.lyft.com" },
-  "paypal": { name: "PayPal", password: "https://www.paypal.com/myaccount/settings/security", account: "https://www.paypal.com/myaccount" },
-  "venmo": { name: "Venmo", password: "https://account.venmo.com/settings", account: "https://account.venmo.com/settings" },
-  "chase": { name: "Chase", password: "https://www.chase.com", account: "https://www.chase.com" },
-  "bank of america": { name: "Bank of America", password: "https://www.bankofamerica.com", account: "https://www.bankofamerica.com" },
-  "walmart": { name: "Walmart", password: "https://www.walmart.com/account", account: "https://www.walmart.com/account" },
-  "target": { name: "Target", password: "https://www.target.com/guest/manage-account", account: "https://www.target.com" },
-  "adobe": { name: "Adobe", password: "https://account.adobe.com/security", account: "https://account.adobe.com" },
-  "dropbox": { name: "Dropbox", password: "https://www.dropbox.com/account_security", account: "https://www.dropbox.com/account" },
-  "yahoo": { name: "Yahoo", password: "https://login.yahoo.com/account/security", account: "https://login.yahoo.com" },
-  "tiktok": { name: "TikTok", password: "https://www.tiktok.com/setting", account: "https://www.tiktok.com/setting" },
-  "snapchat": { name: "Snapchat", password: "https://accounts.snapchat.com/accounts/password", account: "https://accounts.snapchat.com" },
-  "reddit": { name: "Reddit", password: "https://www.reddit.com/settings/account", account: "https://www.reddit.com/settings" },
-  "discord": { name: "Discord", password: "https://discord.com/settings", account: "https://discord.com/settings" },
-  "steam": { name: "Steam", password: "https://store.steampowered.com/account/", account: "https://store.steampowered.com/account/" },
-  "epic": { name: "Epic Games", password: "https://www.epicgames.com/account", account: "https://www.epicgames.com/account" },
-  "sony": { name: "Sony", password: "https://www.playstation.com", account: "https://www.playstation.com" },
-  "nintendo": { name: "Nintendo", password: "https://accounts.nintendo.com", account: "https://accounts.nintendo.com" },
-  "canva": { name: "Canva", password: "https://www.canva.com/settings", account: "https://www.canva.com/settings" },
-  "ticketmaster": { name: "Ticketmaster", password: "https://account.ticketmaster.com", account: "https://account.ticketmaster.com" },
-  "marriott": { name: "Marriott", password: "https://www.marriott.com/account", account: "https://www.marriott.com/account" },
-  "hilton": { name: "Hilton", password: "https://www.hilton.com/en/myaccount/", account: "https://www.hilton.com/en/myaccount/" },
-  "equifax": { name: "Equifax", password: "https://www.equifax.com", account: "https://www.equifax.com" },
-  "capital one": { name: "Capital One", password: "https://www.capitalone.com", account: "https://www.capitalone.com" },
-  "homedepot": { name: "Home Depot", password: "https://www.homedepot.com/myaccount", account: "https://www.homedepot.com/myaccount" },
-  "bestbuy": { name: "Best Buy", password: "https://www.bestbuy.com/account", account: "https://www.bestbuy.com/account" },
-  "dicks sporting": { name: "Dick's Sporting Goods", password: "https://www.dickssportinggoods.com/account", account: "https://www.dickssportinggoods.com/account" },
-  "hacker": { name: "Cybersecurity Alert", password: "https://haveibeenpwned.com", account: "https://haveibeenpwned.com" },
-  " breach": { name: "Data Breach Alert", password: "https://haveibeenpwned.com", account: "https://haveibeenpwned.com" },
-  "data breach": { name: "Data Breach Alert", password: "https://haveibeenpwned.com", account: "https://haveibeenpwned.com" },
+interface CompanySecurityInfo {
+  name: string;
+  password: string;   // direct link to change password
+  twoFactor: string;  // direct link to 2FA/security settings
+  activity: string;   // direct link to recent activity / account overview
+}
+
+const COMPANY_SECURITY_URLS: Record<string, CompanySecurityInfo> = {
+  // Big Tech
+  "amazon": { name: "Amazon", password: "https://www.amazon.com/gp/css/account/info/view.html", twoFactor: "https://www.amazon.com/a/settings/approval", activity: "https://www.amazon.com/gp/css/order-history" },
+  "amzn": { name: "Amazon", password: "https://www.amazon.com/gp/css/account/info/view.html", twoFactor: "https://www.amazon.com/a/settings/approval", activity: "https://www.amazon.com/gp/css/order-history" },
+  "aws": { name: "AWS", password: "https://console.aws.amazon.com/iam/home#/security_credentials", twoFactor: "https://console.aws.amazon.com/iam/home#/security_credentials", activity: "https://console.aws.amazon.com/cloudtrail/home" },
+  "google": { name: "Google", password: "https://myaccount.google.com/password", twoFactor: "https://myaccount.google.com/two-step-verification", activity: "https://myaccount.google.com/security-checkup" },
+  "alphabet": { name: "Google", password: "https://myaccount.google.com/password", twoFactor: "https://myaccount.google.com/two-step-verification", activity: "https://myaccount.google.com/security-checkup" },
+  "googl": { name: "Google", password: "https://myaccount.google.com/password", twoFactor: "https://myaccount.google.com/two-step-verification", activity: "https://myaccount.google.com/security-checkup" },
+  "meta": { name: "Meta / Facebook", password: "https://www.facebook.com/settings?tab=security", twoFactor: "https://www.facebook.com/security/2fac/settings/", activity: "https://www.facebook.com/settings?tab=security" },
+  "facebook": { name: "Facebook", password: "https://www.facebook.com/settings?tab=security", twoFactor: "https://www.facebook.com/security/2fac/settings/", activity: "https://www.facebook.com/settings?tab=security" },
+  "instagram": { name: "Instagram", password: "https://www.instagram.com/accounts/password/change/", twoFactor: "https://www.instagram.com/accounts/two_factor_authentication/", activity: "https://www.instagram.com/accounts/login_activity/" },
+  "whatsapp": { name: "WhatsApp", password: "https://faq.whatsapp.com/general/account-and-profile/about-two-step-verification", twoFactor: "https://faq.whatsapp.com/general/account-and-profile/about-two-step-verification", activity: "https://www.whatsapp.com/legal/privacy-policy" },
+  "apple": { name: "Apple", password: "https://appleid.apple.com/account/manage", twoFactor: "https://appleid.apple.com/account/manage", activity: "https://appleid.apple.com/account/manage" },
+  "microsoft": { name: "Microsoft", password: "https://account.microsoft.com/security", twoFactor: "https://account.microsoft.com/security/mfa", activity: "https://account.microsoft.com/security/recent-activity" },
+  "msft": { name: "Microsoft", password: "https://account.microsoft.com/security", twoFactor: "https://account.microsoft.com/security/mfa", activity: "https://account.microsoft.com/security/recent-activity" },
+  "nvidia": { name: "NVIDIA", password: "https://profile.nvgs.nvidia.com/security", twoFactor: "https://profile.nvgs.nvidia.com/security", activity: "https://profile.nvgs.nvidia.com/security" },
+  "nvda": { name: "NVIDIA", password: "https://profile.nvgs.nvidia.com/security", twoFactor: "https://profile.nvgs.nvidia.com/security", activity: "https://profile.nvgs.nvidia.com/security" },
+
+  // Social / Entertainment
+  "netflix": { name: "Netflix", password: "https://www.netflix.com/password", twoFactor: "https://www.netflix.com/account/security", activity: "https://www.netflix.com/viewingactivity" },
+  "twitter": { name: "X (Twitter)", password: "https://twitter.com/settings/password", twoFactor: "https://twitter.com/settings/account/login_verification", activity: "https://twitter.com/settings/sessions" },
+  "x corp": { name: "X (Twitter)", password: "https://twitter.com/settings/password", twoFactor: "https://twitter.com/settings/account/login_verification", activity: "https://twitter.com/settings/sessions" },
+  "linkedin": { name: "LinkedIn", password: "https://www.linkedin.com/psettings/change-password", twoFactor: "https://www.linkedin.com/psettings/two-step-verification", activity: "https://www.linkedin.com/psettings/sessions" },
+  "spotify": { name: "Spotify", password: "https://www.spotify.com/account/change-password/", twoFactor: "https://www.spotify.com/account/security/", activity: "https://www.spotify.com/account/security/" },
+  "tiktok": { name: "TikTok", password: "https://www.tiktok.com/setting?activeTab=security", twoFactor: "https://www.tiktok.com/setting?activeTab=security", activity: "https://www.tiktok.com/setting?activeTab=security" },
+  "snapchat": { name: "Snapchat", password: "https://accounts.snapchat.com/accounts/password", twoFactor: "https://accounts.snapchat.com/accounts/two_factor_auth_setup", activity: "https://accounts.snapchat.com/accounts/privacy-rights" },
+  "reddit": { name: "Reddit", password: "https://www.reddit.com/settings/account", twoFactor: "https://www.reddit.com/settings/security", activity: "https://www.reddit.com/settings/security" },
+  "discord": { name: "Discord", password: "https://discord.com/settings/account", twoFactor: "https://discord.com/settings/security", activity: "https://discord.com/settings/sessions" },
+  "youtube": { name: "YouTube", password: "https://myaccount.google.com/password", twoFactor: "https://myaccount.google.com/two-step-verification", activity: "https://myaccount.google.com/security-checkup" },
+  "twitch": { name: "Twitch", password: "https://www.twitch.tv/settings/security", twoFactor: "https://www.twitch.tv/settings/security", activity: "https://www.twitch.tv/settings/security" },
+
+  // Finance & Payments
+  "paypal": { name: "PayPal", password: "https://www.paypal.com/myaccount/settings/security", twoFactor: "https://www.paypal.com/myaccount/settings/security", activity: "https://www.paypal.com/myaccount/activities/" },
+  "venmo": { name: "Venmo", password: "https://account.venmo.com/settings/security", twoFactor: "https://account.venmo.com/settings/security", activity: "https://account.venmo.com/settings" },
+  "stripe": { name: "Stripe", password: "https://dashboard.stripe.com/settings/user", twoFactor: "https://dashboard.stripe.com/settings/user/security", activity: "https://dashboard.stripe.com/security/audit-trail" },
+  "chase": { name: "Chase", password: "https://secure.chase.com/web/auth/dashboard#/dashboard/preferences/security", twoFactor: "https://secure.chase.com/web/auth/dashboard#/dashboard/preferences/security", activity: "https://secure.chase.com/web/auth/dashboard#/dashboard/accountActivityTile" },
+  "bank of america": { name: "Bank of America", password: "https://secure.bankofamerica.com/myaccounts/signin/signIn.go", twoFactor: "https://www.bankofamerica.com/security-center/", activity: "https://secure.bankofamerica.com/myaccounts/signin/signIn.go" },
+  "wells fargo": { name: "Wells Fargo", password: "https://connect.secure.wellsfargo.com/auth/login/present", twoFactor: "https://connect.secure.wellsfargo.com/auth/login/present", activity: "https://connect.secure.wellsfargo.com/auth/login/present" },
+  "capital one": { name: "Capital One", password: "https://myaccounts.capitalone.com/accountSummary", twoFactor: "https://myaccounts.capitalone.com/accountSummary", activity: "https://myaccounts.capitalone.com/accountSummary" },
+  "equifax": { name: "Equifax", password: "https://my.equifax.com/consumer-registration/UCSC/#/personal-info", twoFactor: "https://my.equifax.com/consumer-registration/UCSC/#/personal-info", activity: "https://my.equifax.com/membercenter/dashboard" },
+  "experian": { name: "Experian", password: "https://www.experian.com/consumer-products/identity-protection.html", twoFactor: "https://www.experian.com/consumer-products/identity-protection.html", activity: "https://www.experian.com/consumer-products/identity-protection.html" },
+  "coinbase": { name: "Coinbase", password: "https://www.coinbase.com/settings/security", twoFactor: "https://www.coinbase.com/settings/security", activity: "https://www.coinbase.com/settings/activity" },
+
+  // Retail & Commerce
+  "walmart": { name: "Walmart", password: "https://www.walmart.com/account/settings", twoFactor: "https://www.walmart.com/account/settings", activity: "https://www.walmart.com/account/order-history" },
+  "target": { name: "Target", password: "https://www.target.com/account", twoFactor: "https://www.target.com/account", activity: "https://www.target.com/orders" },
+  "home depot": { name: "Home Depot", password: "https://www.homedepot.com/account", twoFactor: "https://www.homedepot.com/account", activity: "https://www.homedepot.com/account/orders" },
+  "homedepot": { name: "Home Depot", password: "https://www.homedepot.com/account", twoFactor: "https://www.homedepot.com/account", activity: "https://www.homedepot.com/account/orders" },
+  "bestbuy": { name: "Best Buy", password: "https://www.bestbuy.com/account/", twoFactor: "https://www.bestbuy.com/account/", activity: "https://www.bestbuy.com/account/" },
+  "best buy": { name: "Best Buy", password: "https://www.bestbuy.com/account/", twoFactor: "https://www.bestbuy.com/account/", activity: "https://www.bestbuy.com/account/" },
+  "ebay": { name: "eBay", password: "https://www.ebay.com/myb/summary", twoFactor: "https://www.ebay.com/myb/summary", activity: "https://www.ebay.com/myb/summary" },
+  "ticketmaster": { name: "Ticketmaster", password: "https://www.ticketmaster.com/my-account", twoFactor: "https://www.ticketmaster.com/my-account", activity: "https://www.ticketmaster.com/my-account/order-history" },
+  "dicks sporting": { name: "Dick's Sporting Goods", password: "https://www.dickssportinggoods.com/account/settings", twoFactor: "https://www.dickssportinggoods.com/account/settings", activity: "https://www.dickssportinggoods.com/account/orderhistory" },
+
+  // Cloud / Software
+  "adobe": { name: "Adobe", password: "https://account.adobe.com/security", twoFactor: "https://account.adobe.com/security", activity: "https://account.adobe.com/security" },
+  "dropbox": { name: "Dropbox", password: "https://www.dropbox.com/account/security", twoFactor: "https://www.dropbox.com/account/security", activity: "https://www.dropbox.com/account/security" },
+  "salesforce": { name: "Salesforce", password: "https://login.salesforce.com/secur/forgotpassword.jsp", twoFactor: "https://help.salesforce.com/s/articleView?id=sf.security_overview_2fa.htm", activity: "https://login.salesforce.com" },
+  "okta": { name: "Okta", password: "https://login.okta.com", twoFactor: "https://login.okta.com", activity: "https://login.okta.com" },
+  "github": { name: "GitHub", password: "https://github.com/settings/security", twoFactor: "https://github.com/settings/two_factor_authentication/configure", activity: "https://github.com/settings/security-log" },
+  "twilio": { name: "Twilio", password: "https://console.twilio.com/user/account/user-settings", twoFactor: "https://console.twilio.com/user/account/user-settings", activity: "https://console.twilio.com/user/account" },
+
+  // Travel & Hospitality
+  "marriott": { name: "Marriott", password: "https://www.marriott.com/loyalty/myAccount/myProfile.mi", twoFactor: "https://www.marriott.com/loyalty/myAccount/myProfile.mi", activity: "https://www.marriott.com/loyalty/myAccount/myTrips.mi" },
+  "hilton": { name: "Hilton", password: "https://www.hilton.com/en/hilton-honors/profile/", twoFactor: "https://www.hilton.com/en/hilton-honors/profile/", activity: "https://www.hilton.com/en/hilton-honors/profile/" },
+  "airbnb": { name: "Airbnb", password: "https://www.airbnb.com/account-settings/personal-info", twoFactor: "https://www.airbnb.com/account-settings/security", activity: "https://www.airbnb.com/account-settings/security" },
+  "uber": { name: "Uber", password: "https://auth.uber.com/login", twoFactor: "https://auth.uber.com/login", activity: "https://auth.uber.com/login" },
+  "lyft": { name: "Lyft", password: "https://account.lyft.com/security", twoFactor: "https://account.lyft.com/security", activity: "https://account.lyft.com/security" },
+
+  // Telecom
+  "at&t": { name: "AT&T", password: "https://www.att.com/my/account.html", twoFactor: "https://www.att.com/my/account.html", activity: "https://www.att.com/my/account.html" },
+  "att": { name: "AT&T", password: "https://www.att.com/my/account.html", twoFactor: "https://www.att.com/my/account.html", activity: "https://www.att.com/my/account.html" },
+  "verizon": { name: "Verizon", password: "https://account.verizon.com/login", twoFactor: "https://account.verizon.com/login", activity: "https://account.verizon.com/login" },
+  "t-mobile": { name: "T-Mobile", password: "https://account.t-mobile.com", twoFactor: "https://account.t-mobile.com", activity: "https://account.t-mobile.com" },
+  "tmobile": { name: "T-Mobile", password: "https://account.t-mobile.com", twoFactor: "https://account.t-mobile.com", activity: "https://account.t-mobile.com" },
+
+  // Gaming
+  "steam": { name: "Steam", password: "https://store.steampowered.com/account/", twoFactor: "https://store.steampowered.com/account/", activity: "https://store.steampowered.com/account/" },
+  "epic": { name: "Epic Games", password: "https://www.epicgames.com/account/password", twoFactor: "https://www.epicgames.com/account/security", activity: "https://www.epicgames.com/account/security" },
+  "epic games": { name: "Epic Games", password: "https://www.epicgames.com/account/password", twoFactor: "https://www.epicgames.com/account/security", activity: "https://www.epicgames.com/account/security" },
+  "sony": { name: "PlayStation", password: "https://id.sonyentertainmentnetwork.com/id/management/", twoFactor: "https://id.sonyentertainmentnetwork.com/id/management/", activity: "https://id.sonyentertainmentnetwork.com/id/management/" },
+  "playstation": { name: "PlayStation", password: "https://id.sonyentertainmentnetwork.com/id/management/", twoFactor: "https://id.sonyentertainmentnetwork.com/id/management/", activity: "https://id.sonyentertainmentnetwork.com/id/management/" },
+  "nintendo": { name: "Nintendo", password: "https://accounts.nintendo.com/profile/security", twoFactor: "https://accounts.nintendo.com/profile/security", activity: "https://accounts.nintendo.com/profile/security" },
+
+  // Other
+  "yahoo": { name: "Yahoo", password: "https://login.yahoo.com/account/security", twoFactor: "https://login.yahoo.com/account/security", activity: "https://login.yahoo.com/account/security" },
+  "canva": { name: "Canva", password: "https://www.canva.com/settings/account", twoFactor: "https://www.canva.com/settings/account", activity: "https://www.canva.com/settings/account" },
+  "globalstar": { name: "Globalstar", password: "https://www.globalstar.com/en-us/", twoFactor: "https://www.globalstar.com/en-us/", activity: "https://www.globalstar.com/en-us/" },
 };
 
 const EXPOSED_TYPE_MAP: Record<string, string[]> = {
@@ -88,44 +138,47 @@ export default async function ProtectPage({ params, searchParams }: ProtectPageP
     });
   });
 
+  const displayName = companyInfo?.name || companyName;
+  const fallbackSearch = (q: string) => `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+
   const passwordAction = {
     icon: Key,
-    title: "Change Your Password",
-    description: "Create a strong, unique password for your account",
-    url: companyInfo?.password || `https://www.google.com/search?q=${encodeURIComponent(companyName)} official website`,
-    priority: suggestedTypes.has("password") ? "high" : "normal"
+    title: `Change Your ${displayName} Password`,
+    description: `Go directly to ${displayName}'s password settings and update to a strong, unique password.`,
+    url: companyInfo?.password || fallbackSearch(`${companyName} change password`),
+    priority: suggestedTypes.has("password") ? "high" : "normal",
   };
 
   const twoFactorAction = {
     icon: Lock,
-    title: "Enable Two-Factor Authentication",
-    description: "Add an extra layer of security to prevent unauthorized access",
-    url: companyInfo ? `${companyInfo.account}` : `https://www.google.com/search?q=${encodeURIComponent(companyName)} two-factor authentication`,
-    priority: "normal"
+    title: `Enable ${displayName} Two-Factor Authentication`,
+    description: `Turn on 2FA in your ${displayName} security settings to block unauthorized logins.`,
+    url: companyInfo?.twoFactor || fallbackSearch(`${companyName} enable two factor authentication`),
+    priority: "normal",
   };
 
   const reviewAction = {
     icon: Search,
-    title: "Review Recent Activity",
-    description: "Check your account for any unauthorized access or changes",
-    url: companyInfo?.account || `https://www.google.com/search?q=${encodeURIComponent(companyName)} account settings`,
-    priority: "normal"
+    title: `Review ${displayName} Account Activity`,
+    description: `Check your ${displayName} account for any logins or changes you don't recognize.`,
+    url: companyInfo?.activity || fallbackSearch(`${companyName} recent account activity`),
+    priority: "normal",
   };
 
   const creditAction = {
     icon: AlertTriangle,
-    title: "Monitor Your Credit",
-    description: "Place a fraud alert or credit freeze if personal information was exposed",
+    title: "Place a Credit Freeze",
+    description: "Freeze your credit at all three bureaus to prevent new accounts being opened in your name.",
     url: "https://www.annualcreditreport.com",
-    priority: suggestedTypes.has("ssn") || suggestedTypes.has("personal") ? "high" : "low"
+    priority: suggestedTypes.has("ssn") || suggestedTypes.has("personal") ? "high" : "low",
   };
 
   const passwordManagerAction = {
     icon: Key,
     title: "Use a Password Manager",
-    description: "Generate and store unique passwords for all your accounts",
+    description: "Generate and store unique passwords so a breach at one site can't affect others.",
     url: "https://passwords.google.com",
-    priority: "low"
+    priority: "low",
   };
 
   let actions = [passwordAction, twoFactorAction, reviewAction];
