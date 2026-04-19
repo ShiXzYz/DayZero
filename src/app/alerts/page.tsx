@@ -11,11 +11,21 @@ import {
   AlertTriangle,
   BellOff,
   Settings,
-  RefreshCw
+  RefreshCw,
+  BellRing
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Alert, Severity } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
+
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
 
 const SEVERITY_COLORS: Record<Severity, string> = {
   Critical: "bg-red-500/20 text-red-300 border-red-500/30",
@@ -75,6 +85,45 @@ export default function AlertsPage() {
     }
   };
 
+  const [pushStatus, setPushStatus] = useState<"unknown" | "granted" | "denied" | "loading">("unknown");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPushStatus(Notification.permission === "granted" ? "granted" : Notification.permission === "denied" ? "denied" : "unknown");
+    }
+  }, []);
+
+  const enablePushNotifications = async () => {
+    if (!user?.id || !VAPID_PUBLIC_KEY) return;
+    setPushStatus("loading");
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushStatus("denied");
+        return;
+      }
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, subscription }),
+      });
+
+      setPushStatus("granted");
+    } catch (err) {
+      console.error("Push subscription failed:", err);
+      setPushStatus("unknown");
+    }
+  };
+
   const unreadCount = alerts.filter(a => !a.isRead).length;
   const filteredAlerts = filter === "unread" ? alerts.filter(a => !a.isRead) : alerts;
 
@@ -118,6 +167,23 @@ export default function AlertsPage() {
               >
                 <RefreshCw className={`h-4 w-4 text-slate-400 ${isLoading ? "animate-spin" : ""}`} />
               </Button>
+              {isAuthenticated && pushStatus !== "granted" && pushStatus !== "denied" && "Notification" in (typeof window !== "undefined" ? window : {}) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={enablePushNotifications}
+                  disabled={pushStatus === "loading"}
+                  className="rounded-xl text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 gap-1.5 text-xs"
+                >
+                  <BellRing className="h-4 w-4" />
+                  {pushStatus === "loading" ? "Enabling..." : "Enable alerts"}
+                </Button>
+              )}
+              {pushStatus === "granted" && (
+                <span className="text-xs text-green-400 flex items-center gap-1">
+                  <BellRing className="h-3.5 w-3.5" /> On
+                </span>
+              )}
             </div>
           </div>
         </motion.div>

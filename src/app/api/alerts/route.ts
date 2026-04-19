@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
+    const alert = {
       id: data.id,
       userId: data.user_id,
       type: data.type,
@@ -105,7 +105,23 @@ export async function POST(request: NextRequest) {
       severity: data.severity,
       isRead: data.is_read,
       createdAt: data.created_at,
-    });
+    };
+
+    // Fire push notification (non-blocking)
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://dayzero-io.vercel.app";
+    fetch(`${baseUrl}/api/push/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: data.user_id,
+        title: data.title,
+        body: data.message,
+        url: "/alerts",
+        tag: `alert-${data.id}`,
+      }),
+    }).catch((err) => console.error("[alerts POST] Push notification failed:", err));
+
+    return NextResponse.json(alert);
   } catch (error) {
     console.error("Error creating alert:", error);
     return NextResponse.json(
