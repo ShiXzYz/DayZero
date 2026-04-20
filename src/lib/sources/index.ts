@@ -247,10 +247,10 @@ async function writeToDatabase(incidents: Incident[]): Promise<void> {
     const { data: existing } = await supabase
       .from("incidents")
       .select("title")
-      .in("title", incidents.slice(0, 50).map(i => i.title));
+      .in("title", incidents.map(i => i.title));
 
     const existingTitles = new Set((existing || []).map((r: { title: string }) => r.title));
-    const newIncidents = incidents.slice(0, 50).filter(i => !existingTitles.has(i.title));
+    const newIncidents = incidents.filter(i => !existingTitles.has(i.title));
 
     if (newIncidents.length === 0) return;
 
@@ -387,7 +387,7 @@ async function fetchNewsIncidents(): Promise<Incident[]> {
   try {
     const articles = await fetchAllNewsFeeds();
     
-    return articles.slice(0, 50).map(article => ({
+    return articles.map(article => ({
       id: article.id,
       companyId: "",
       companyName: article.relatedCompanies[0] || article.source,
